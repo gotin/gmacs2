@@ -1,0 +1,19 @@
+MouseEvent, KeyboardEvent, WheelEvent have getModifierState()
+-Shift
+-Control
+-Alt
+-Meta
+-AltGraph
+-CapsLock
+-NumLock
+-ScrollLock(IE:Scroll)
+-SymboLock
+-Fn
+-OS(IE:Win)
+
+
+KeyboardEvent has new attributes .key and .char 
+char: character input value( in case of non-character input key, the value is '')
+key: actual key
+
+but currently only IE and Opera support it.

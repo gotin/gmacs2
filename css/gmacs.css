@@ -1,0 +1,15 @@
+.char, #cursor{
+		font-family: monospace;
+		float: left;
+}
+
+#cursor{
+		width: 0;
+		border-left: 1px solid #333;
+}
+
+.lineEnd{
+		float: none;
+		clear: both;
+}
+
