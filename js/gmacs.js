@@ -8,7 +8,10 @@ $(function(){
   var $EOF = $('#EOF');
   var BOF = $BOF[0];
   var EOF = $EOF[0];
+
   var keyDownHit = false;
+  var cursorX = -1;
+
   prepareKeyEventMap();
   
   function invokeHandler(input){
@@ -23,7 +26,7 @@ $(function(){
     if(!keyDownHit || mod){
       var input = (mod ? mod + '-' : '') + String.fromCharCode(e.charCode);
       if(input){
-        console.log(input);
+        // console.log(input);
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -33,7 +36,7 @@ $(function(){
     keyDownHit = false;
   }).keydown(function(e){
     var input = vkCodeMap[e.keyCode];
-    console.log('keydown: ' + input);
+    // console.log('keydown: ' + input);
     if(input){
       e.preventDefault();
       e.stopPropagation();
@@ -55,7 +58,7 @@ $(function(){
     function prepareBasicKeyInputHandler(){
       for(var code=32;code <= 126; code++){
         var char = String.fromCharCode(code);
-        console.log(char);
+        // console.log(char);
         var handler = generateKeyInputHandler(char);
         keyEventMap[char] = handler;
         keyEventMap['S-' + char] = handler;
@@ -66,7 +69,7 @@ $(function(){
 
     function generateKeyInputHandler(char){
       return function(opt){
-        console.log('#' + char + '#');
+        // console.log('#' + char + '#');
         var buffer = opt.buffer;
         buffer.insertChar(char);
       };
@@ -100,30 +103,107 @@ $(function(){
 
 
 
-  function Buffer(){
+  function Buffer(){};
+
+  Buffer.prototype.insertLineDelimiter = function(){
+    var next = $c.before('<div class="char line_delimiter"><br /></div>')
+      .parent('div.line').removeClass('current')
+      .after('<div class="line current"></div>')
+      .next('div.line')
+      .append($('~ div.char', $c))
+      .append($c);
   };
+
   Buffer.prototype.insertChar = function(c){
-    var mark = (c == (this.lineDelimiter || '\n')) ? ' lineEnd' : '';
-    $c.before('<div class="char' + mark + '">' + (c == ' ' ? '&nbsp;' : c) + '</div>');
+    cursorX = -1;
+    if(c == (this.lineDelimiter || '\n')){
+      this.insertLineDelimiter();
+    } else {
+      if(c == ' '){
+        $c.before('<div class="char normal space">&nbsp;</div>');
+      } else {
+        $c.before('<div class="char normal"></div>')
+          .prev().text(c);
+      }
+    }
   };
   Buffer.prototype.backspace = function(){
-    if($c.prev()[0] != BOF){
-      $c.prev().remove();
+    cursorX = -1;
+    var $prev = $c.prev('div.char.normal');
+    if($prev.length == 0){
+      var $line = $c.parent('div.line');
+      var $preLine = $line.prev('div.line');
+      if($preLine.length > 0){
+        $('div.char.line_delimiter', $preLine).remove();
+        $preLine.addClass('current');
+        $preLine.append($c);
+        $line.remove();
+      }
+    } else {
+      $prev.remove();
     }
   };
   Buffer.prototype.moveCursorHorizontally = function(n){
+    cursorX = -1;
+    var $line = $c.parent('div.line');
     if(n<0){
-      if($c.prev()[0] != BOF){
+      var $prev = $c.prev('div.char');
+      if($prev.length > 0){
         $c.prev().before($c);
+      } else {
+        var $preLine = $line.prev('div.line');
+        if($preLine.length > 0){
+          var $chars = $('div.char.normal', $preLine);
+          if($chars.length > 0){
+            $chars.last().after($c);
+          } else {
+            $preLine.prepend($c);
+          }
+          $line.removeClass('current');
+          $preLine.addClass('current');
+        }
       }
     } else if(n>0){
-      if($c.next()[0] != EOF){
+      var $next = $c.next('div.char.normal');
+      if($next.length > 0){
         $c.next().after($c);
+      } else {
+        var $nextLine = $line.next('div.line');
+        if($nextLine.length > 0){
+          $nextLine.prepend($c);
+          $line.removeClass('current');
+          $nextLine.addClass('current');
+        }
       }
     }
   };
+
   Buffer.prototype.moveCursorVertically = function(n){
-    // implement me
+    var $line = $c.parent('div.line');
+    if(cursorX < 0){
+      cursorX = $c.prevAll('div.char.normal').length;
+    }
+    console.log(cursorX);
+    var $targetLine = null;
+    if(n<0){
+      $targetLine = $line.prev('div.line');
+    } else {
+      $targetLine = $line.next('div.line');
+    }
+    if($targetLine.length > 0){
+      var $targetLineChars = $('div.char.normal', $targetLine);
+      if(cursorX == 0 || $targetLineChars.length == 0){
+        $targetLine.prepend($c);
+      } else {
+        if($targetLineChars.length >= cursorX){
+          $($targetLineChars.get(cursorX-1)).after($c);
+        } else {
+          $targetLineChars.last().after($c);
+        }
+      }
+      $line.removeClass('current');
+      $targetLine.addClass('current');
+    }        
   };
   Buffer.prototype.lineDelimiter = '\n';
 
@@ -149,7 +229,7 @@ $(function(){
     46: 'Del'
   };
   function keyMap(code){
-    console.log("code:" + code);
+    // console.log("code:" + code);
     var char = String.fromCharCode(code);
     if(32 <= code && code <= 126){
       ret = char;

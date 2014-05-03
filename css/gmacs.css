@@ -6,10 +6,21 @@
 #cursor{
 		width: 0;
 		border-left: 1px solid #333;
+		margin-left: -1px;
 }
 
-.lineEnd{
+#cursor + div.char.normal{
+		background-color: #CCCCFF;
+}
+
+.line{
 		float: none;
 		clear: both;
+		overflow: hidden;
+		padding: 1px;
+}
+
+.line.current{
+		background-color: #EEEEFF;
 }
 
