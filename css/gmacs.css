@@ -1,16 +1,23 @@
-.char, #cursor{
-		font-family: monospace;
+.char, .cursor{
 		float: left;
 }
 
-#cursor{
+.cursor{
 		width: 0;
-		border-left: 1px solid #333;
+		border-left: 1px solid #FFF;
 		margin-left: -1px;
 }
 
-#cursor + div.char.normal{
-		background-color: #CCCCFF;
+
+/*
+.cursor + div.char.normal{
+		background-color: #66C;
+}
+*/
+
+div.char.normal{
+		background-color: #777;
+		/* margin-right: 1px; */
 }
 
 .line{
@@ -21,6 +28,18 @@
 }
 
 .line.current{
-		background-color: #EEEEFF;
+		background-color: #669;
 }
 
+html {
+		font-family: Consolas, monospace;
+		background-color: #666;
+		color: #FFF;
+}
+
+#footer{
+		background-color: #000;
+		position: fixed;
+		bottom: 0px;
+		width: 100%;
+}
