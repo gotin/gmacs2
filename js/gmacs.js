@@ -1,8 +1,18 @@
 $(function(){
+  var $input = $('#input');
+  var input = $input.get(0);
+  $input.val('');
+  var ime = false;
+  input.focus();
+  $input.blur(function(){input.focus();}).focusout(function(){input.focus();});
+  setInterval(function(){$('#input:focus').length == 0 ? input.focus() : '';}, 100);
   var keyEventMap = {};
   var modes = {default: keyEventMap};
   var current_mode = 'default';
-  var buffer = new Buffer('#editor');
+  var buffers = {'*scratch*' : new Buffer('#editor')};
+  var current_buffer_title = '*scratch*';
+  var buffer = buffers[current_buffer_title];
+
   var $d = $(document);
   var $footer = $('#footer');
 
@@ -20,11 +30,32 @@ $(function(){
     var func = modes[current_mode][input];
     if(func){
       func({buffer:buffer});
+      var pos = buffer.getCursorPosition();
+      $footer.text('(' + pos.row+','+pos.column+')');
     } else {
       past_input = null;
       $footer.text('');
     }
   }
+
+  $d.bind('compositionstart', function(e){
+    ime = true;
+    $input.css(buffer.$c.position());
+    $input.css('z-index', '100');
+  }).bind('compositionend', function(e){
+    
+    var timer = setInterval(function(){
+      if(!ime){
+        $input.val().split('').forEach(function(c){buffer.insertChar(c);});
+        $input.val('');
+        clearInterval(timer);
+        $input.css('z-index', '1');
+        var pos = buffer.getCursorPosition();
+        $footer.text('(' + pos.row+','+pos.column+')');
+      }
+    },10);
+    ime = false;
+  });;
 
   $d.keypress(function(e){
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
@@ -53,9 +84,18 @@ $(function(){
     }
     keyDownHit = false;
   }).keydown(function(e){
+    var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     keyDown = e.keyCode;
-    var input = vkCodeMap[e.keyCode];
-    // console.log('keydown: ' + e.keyCode);
+
+    var input = null;
+    if(mod.match(/(A|M|C){1,3}/)){
+      input = mod + '-' + String.fromCharCode(keyDown).toLowerCase();
+      keyDown = null;
+    } else {
+      input = vkCodeMap[keyDown];
+    }
+    // console.log('keydown: ' + keyDown);
+
     if(input){
       e.preventDefault();
       e.stopPropagation();
@@ -66,8 +106,11 @@ $(function(){
       var func = modes[current_mode][input];
       if(func){
         func({buffer:buffer});
+        var pos = buffer.getCursorPosition();
+        $footer.text('(' + pos.row+','+pos.column+')');
       } else {
-        keyDownHit = true;
+        
+        keyDownHit = !!keyDown;
       }
     }
   });
@@ -85,9 +128,9 @@ $(function(){
         keyEventMap[char] = handler;
         keyEventMap['S-' + char] = handler;
       }
-      keyEventMap['Enter'] = generateKeyInputHandler(buffer.lineDelimiter || '\n');
-      keyEventMap['Backspace'] = backspace;
-      keyEventMap['Del'] = deleteChar;
+      keyEventMap['C-m'] = keyEventMap['Enter'] = generateKeyInputHandler(buffer.lineDelimiter || '\n');
+      keyEventMap['C-h'] = keyEventMap['Backspace'] = backspace;
+      keyEventMap['C-d'] = keyEventMap['Del'] = deleteChar;
     }
 
     function prepareCombinationSequences(){
@@ -100,7 +143,7 @@ $(function(){
       keyEventMap[sequence] = function(opt){
         past_input = sequence;
         $footer.text(past_input);
-        console.log(past_input);
+        // console.log(past_input);
       };
     }
 

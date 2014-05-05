@@ -1,3 +1,27 @@
+body {
+		margin:0;
+		padding:0;
+}
+#input {
+		position: absolute;
+		top: 10px;
+		left:10px;
+		z-index: 1;
+		font-family: Consolas, monospace;
+		font-size: 10pt;
+		border: 0;
+		background-color: #666;
+		color: #FFF;
+}
+
+#editor {
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		z-index: 10;
+		background-color: #666
+}
+
 .char, .cursor{
 		float: left;
 }
@@ -17,6 +41,7 @@
 
 div.char.normal{
 		background-color: #777;
+		vertical-align: top;
 		/* margin-right: 1px; */
 }
 
@@ -35,6 +60,7 @@ html {
 		font-family: Consolas, monospace;
 		background-color: #666;
 		color: #FFF;
+		font-size: 10pt;
 }
 
 #footer{
@@ -42,4 +68,5 @@ html {
 		position: fixed;
 		bottom: 0px;
 		width: 100%;
+		z-index: 100;
 }
