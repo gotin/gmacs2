@@ -384,6 +384,12 @@ Buffer.prototype.moveCursorVertically = function(n){
 };
 Buffer.prototype.lineDelimiter = '\n';
 
+Buffer.prototype.getCursorPosition = function(){
+  var $c = this.$c;
+  var column = $c.prevAll('div.char.normal').length;
+  var row = $c.parent('div.line').prevAll('div.line').length + 1;
+  return {row: row, column: column};
+};
 
 var vkCodeMap = {
   8: 'Backspace',
