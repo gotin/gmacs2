@@ -1,6 +1,9 @@
+var $input = $('#input');
+var input = $input.get(0);
+var $d = $(document);
+var $footer = $('#footer');
+var $body = $('html,body');
 $(function(){
-  var $input = $('#input');
-  var input = $input.get(0);
   $input.val('');
   var ime = false;
   input.focus();
@@ -13,8 +16,6 @@ $(function(){
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
 
-  var $d = $(document);
-  var $footer = $('#footer');
 
   var past_input = null;
   var keyDown = null;
@@ -219,13 +220,14 @@ function generate_uuid(){
 Buffer.prototype.reset = function(){
   var uuid = this.uuid;
   var $e = this.$editor;
-  $e.html('<div id="BOF_'+uuid+'"></div><div class="line current"><div class="cursor" id="cursor_'+uuid+'">&nbsp;</div></div><div id="EOF_'+uuid+'"></div>');
+  $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><div class="cursor" id="cursor_'+uuid+'">&nbsp;</div></div><div id="EOF_'+uuid+'" class="EOF"></div>');
   this.uuid = uuid;
   this.$c = $('#cursor_' + uuid);
   this.$BOF = $('#BOF_' + uuid);
   this.$EOF = $('#EOF_' + uuid);
   this.cursorX = -1;
   this.enabled = true;
+  this.scrollToCursor(-1);
 };
 
 Buffer.prototype.init = function(selector){
@@ -244,6 +246,7 @@ Buffer.prototype.insertLineDelimiter = function(){
     .next('div.line')
     .append($('div.cursor, div.cursor ~ div.char, div.cursor'));
 //    .append($c);
+  this.scrollToCursor(+1);
 };
 
 Buffer.prototype.insertChar = function(c){
@@ -275,6 +278,7 @@ Buffer.prototype.backspace = function(){
       $preLine.addClass('current');
       $preLine.append($c);
       $line.remove();
+      this.scrollToCursor(-1);
     }
   } else {
     $prev.remove();
@@ -321,6 +325,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
   var $c = this.$c;
   this.cursorX = -1;
   var $line = $c.parent('div.line');
+  var up_or_down = 0;
   if(n<0){
     var $prev = $c.prev('div.char');
     if($prev.length > 0){
@@ -336,6 +341,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
         }
         $line.removeClass('current');
         $preLine.addClass('current');
+        up_or_down = -1;
       }
     }
   } else if(n>0){
@@ -348,8 +354,39 @@ Buffer.prototype.moveCursorHorizontally = function(n){
         $nextLine.prepend($c);
         $line.removeClass('current');
         $nextLine.addClass('current');
+        up_or_down = +1;
       }
     }
+  }
+  this.scrollToCursor(up_or_down);
+};
+
+Buffer.prototype.scrollToCursor = function(up_or_down){
+  // up : -1
+  // down : +1
+  var $c = this.$c;
+  if(up_or_down != -1 && up_or_down != 1){
+    return;
+  }
+  var $line = $c.parent('div.line');
+  var line_height = $line.height() + h('margin-top') + h('border-top') + h('padding-top')
+    + h('margin-bottom') + h('border-bottom') + h('padding-bottom');
+  
+  var top = $c.offset().top - (up_or_down > 0 ? window.innerHeight : 0)
+    + (up_or_down > 0 ? 1 : -1) * line_height * 3 + (up_or_down > 0 ? $footer.height() : 0);
+  // TODO: number 3 above should be customizable
+
+  var current_top = $d.scrollTop();
+  if(up_or_down > 0 && top > current_top ||
+     up_or_down < 0 && top < current_top ){
+    $body.animate({scrollTop: top}, 10);
+  }
+
+  function h(k){
+    var sv = $line.css(k);
+    var match = (sv||'').match(/^\d+/);
+    var v = match ? match[0] : 0;
+    return v|0;
   }
 };
 
@@ -380,6 +417,7 @@ Buffer.prototype.moveCursorVertically = function(n){
     }
     $line.removeClass('current');
     $targetLine.addClass('current');
+    this.scrollToCursor(n);
   }        
 };
 Buffer.prototype.lineDelimiter = '\n';
