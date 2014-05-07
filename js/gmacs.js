@@ -276,7 +276,7 @@ Buffer.prototype.backspace = function(){
     if($preLine.length > 0){
       $('div.char.line_delimiter', $preLine).remove();
       $preLine.addClass('current');
-      $preLine.append($c);
+      $preLine.append($line.children());
       $line.remove();
       this.scrollToCursor(-1);
     }
