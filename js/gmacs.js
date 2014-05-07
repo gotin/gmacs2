@@ -220,7 +220,7 @@ function generate_uuid(){
 Buffer.prototype.reset = function(){
   var uuid = this.uuid;
   var $e = this.$editor;
-  $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><div class="cursor" id="cursor_'+uuid+'">&nbsp;</div></div><div id="EOF_'+uuid+'" class="EOF"></div>');
+  $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>');
   this.uuid = uuid;
   this.$c = $('#cursor_' + uuid);
   this.$BOF = $('#BOF_' + uuid);
@@ -240,11 +240,11 @@ Buffer.prototype.init = function(selector){
 Buffer.prototype.insertLineDelimiter = function(){
   if(!this.enabled) return;
   var $c = this.$c;
-  var next = $c.before('<div class="char line_delimiter"><br />\n</div>')
+  var next = $c.before('<span class="char line_delimiter"><br />\n</span>')
     .parent('div.line').removeClass('current')
     .after('<div class="line current"></div>')
     .next('div.line')
-    .append($('div.cursor, div.cursor ~ div.char, div.cursor'));
+    .append($('span.cursor, span.cursor ~ span.char, span.cursor'));
 //    .append($c);
   this.scrollToCursor(+1);
 };
@@ -258,9 +258,9 @@ Buffer.prototype.insertChar = function(c){
     this.insertLineDelimiter();
   } else {
     if(c == ' '){
-      $c.before('<div class="char normal space">&nbsp;</div>');
+      $c.before('<span class="char normal space">&nbsp;</span>');
     } else {
-      $c.before('<div class="char normal"></div>')
+      $c.before('<span class="char normal"></span>')
         .prev().text(c);
     }
   }
@@ -269,12 +269,12 @@ Buffer.prototype.backspace = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $prev = $c.prev('div.char.normal');
+  var $prev = $c.prev('span.char.normal');
   if($prev.length == 0){
     var $line = $c.parent('div.line');
     var $preLine = $line.prev('div.line');
     if($preLine.length > 0){
-      $('div.char.line_delimiter', $preLine).remove();
+      $('span.char.line_delimiter', $preLine).remove();
       $preLine.addClass('current');
       $preLine.append($line.children());
       $line.remove();
@@ -289,12 +289,12 @@ Buffer.prototype.delete = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $next = $c.next('div.char.normal');
+  var $next = $c.next('span.char.normal');
   if($next.length == 0){
     var $line = $c.parent('div.line');
     var $nextLine = $line.next('div.line');
     if($nextLine.length > 0){
-      $('div.char.line_delimiter', $line).remove();
+      $('span.char.line_delimiter', $line).remove();
       $line.append($nextLine.children());
       $nextLine.remove();
     }
@@ -308,7 +308,7 @@ Buffer.prototype.moveCursorToBOL = function(){
   var $c = this.$c;
   this.cursorX = -1;
   var $line = $c.parent('div.line');
-  $('div.char.normal', $line).first().before($c);
+  $('span.char.normal', $line).first().before($c);
 };
 
 Buffer.prototype.moveCursorToEOL = function(){
@@ -316,7 +316,7 @@ Buffer.prototype.moveCursorToEOL = function(){
   var $c = this.$c;
   this.cursorX = -1;
   var $line = $c.parent('div.line');
-  $('div.char.normal', $line).last().after($c);
+  $('span.char.normal', $line).last().after($c);
 };
 
 
@@ -327,13 +327,13 @@ Buffer.prototype.moveCursorHorizontally = function(n){
   var $line = $c.parent('div.line');
   var up_or_down = 0;
   if(n<0){
-    var $prev = $c.prev('div.char');
+    var $prev = $c.prev('span.char');
     if($prev.length > 0){
       $c.prev().before($c);
     } else {
       var $preLine = $line.prev('div.line');
       if($preLine.length > 0){
-        var $chars = $('div.char.normal', $preLine);
+        var $chars = $('span.char.normal', $preLine);
         if($chars.length > 0){
           $chars.last().after($c);
         } else {
@@ -345,7 +345,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       }
     }
   } else if(n>0){
-    var $next = $c.next('div.char.normal');
+    var $next = $c.next('span.char.normal');
     if($next.length > 0){
       $c.next().after($c);
     } else {
@@ -395,7 +395,7 @@ Buffer.prototype.moveCursorVertically = function(n){
   var $c = this.$c;
   var $line = $c.parent('div.line');
   if(this.cursorX < 0){
-    this.cursorX = $c.prevAll('div.char.normal').length;
+    this.cursorX = $c.prevAll('span.char.normal').length;
   }
   // console.log(cursorX);
   var $targetLine = null;
@@ -405,7 +405,7 @@ Buffer.prototype.moveCursorVertically = function(n){
         $targetLine = $line.next('div.line');
       }
   if($targetLine.length > 0){
-    var $targetLineChars = $('div.char.normal', $targetLine);
+    var $targetLineChars = $('span.char.normal', $targetLine);
     if(this.cursorX == 0 || $targetLineChars.length == 0){
       $targetLine.prepend($c);
     } else {
@@ -424,7 +424,7 @@ Buffer.prototype.lineDelimiter = '\n';
 
 Buffer.prototype.getCursorPosition = function(){
   var $c = this.$c;
-  var column = $c.prevAll('div.char.normal').length;
+  var column = $c.prevAll('span.char.normal').length;
   var row = $c.parent('div.line').prevAll('div.line').length + 1;
   return {row: row, column: column};
 };

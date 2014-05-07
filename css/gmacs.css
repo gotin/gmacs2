@@ -22,11 +22,11 @@ body {
 		background-color: #666
 }
 
-.char, .cursor{
+/* .char, .cursor{
 		float: left;
-}
+}*/
 
-.cursor{
+span.cursor{
 		width: 0;
 		border-left: 1px solid #FFF;
 		margin-left: -1px;
@@ -39,16 +39,16 @@ body {
 }
 */
 
-div.char.normal{
+span.char.normal{
 		background-color: #777;
 		vertical-align: top;
 		/* margin-right: 1px; */
 }
 
 .line{
-		float: none;
-		clear: both;
-		overflow: hidden;
+/*		float: none; */
+/*		clear: both; */
+/*		overflow: hidden; */
 		padding: 1px;
 }
 
