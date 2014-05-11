@@ -24,18 +24,21 @@ $(function(){
   prepareKeyEventMap();
 
   function invokeHandler(input){
-    if(past_input){
+    if(past_input != null){
       past_input = input = past_input + input;
       $footer.text(past_input);
     }
     var func = modes[current_mode][input];
     if(func){
-      func({buffer:buffer});
+      var status = func({buffer:buffer});
       var pos = buffer.getCursorPosition();
       $footer.text('(' + pos.row+','+pos.column+')');
+      if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
+        past_input = null;
+      }
     } else {
-      past_input = null;
       $footer.text('');
+      past_input = null;
     }
   }
 
@@ -106,11 +109,13 @@ $(function(){
       }
       var func = modes[current_mode][input];
       if(func){
-        func({buffer:buffer});
+        var status = func({buffer:buffer});
         var pos = buffer.getCursorPosition();
         $footer.text('(' + pos.row+','+pos.column+')');
+        if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
+          past_input = null;
+        }
       } else {
-        
         keyDownHit = !!keyDown;
       }
     }
@@ -142,9 +147,14 @@ $(function(){
 
     function setKeepSequenceHandler(sequence){
       keyEventMap[sequence] = function(opt){
-        past_input = sequence;
+        if(past_input != null){
+          past_input += sequence;
+        } else {
+          past_input = sequence;
+        }
         $footer.text(past_input);
         // console.log(past_input);
+        return {keepPastInput : true};
       };
     }
 
