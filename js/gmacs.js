@@ -125,7 +125,14 @@ $(function(){
     prepareBasicKeyInputHandler();
     prepareCursorOperationHandler();
     prepareCombinationSequences();
-    
+    prepareMarkOperations();
+
+    function prepareMarkOperations(){
+      keyEventMap['C-@'] = keyEventMap['C- '] = markSet;
+      keyEventMap['C-xC-x'] = swapMarkAndCursor;
+      keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = moveToPreMark;
+    }
+
     function prepareBasicKeyInputHandler(){
       for(var code=32;code <= 126; code++){
         var char = String.fromCharCode(code);
@@ -140,6 +147,7 @@ $(function(){
     }
 
     function prepareCombinationSequences(){
+      setKeepSequenceHandler('C-u');
       setKeepSequenceHandler('C-x');
       setKeepSequenceHandler('C-c');
       keyEventMap['C-xk'] = reset;
@@ -169,6 +177,21 @@ $(function(){
     function reset(opt){
       var buffer = opt.buffer;
       buffer.reset();
+    }
+
+    function markSet(opt){
+      var buffer = opt.buffer;
+      buffer.markSet();
+    }
+
+    function swapMarkAndCursor(opt){
+      var buffer = opt.buffer;
+      buffer.swapMarkAndCursor();
+    }
+
+    function moveToPreMark(opt){
+      var buffer = opt.buffer;
+      buffer.moveToPreMark();
     }
 
     function backspace(opt){
@@ -249,13 +272,55 @@ Buffer.prototype.reset = function(){
   this.addEventListner('cursor_moved', function(event){
     self.scrollToCursor(event.row || 0);
   });
-
-
   this.fireEvent('cursor_moved', {row:-1});
-
+  this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
+  this.visibleMarkMode = true;
+};
 
+Buffer.prototype.markSet = function(){
+  var $c = this.$c;
+  if($c.prev().hasClass('mark')){
+    // nothing to do here now
+  } else {
+    $c.before('<span class="mark"></span>');
+    this.markRing.push($c.prev());
+  }
+};
 
+Buffer.prototype.moveToPreMark = function(){
+  var $c = this.$c;
+  var $mark = this.markRing.pop();
+  if($mark == null){
+    return; // nothing to do here now
+  }
+  $mark.after($c);
+  var mark_pos = this.getCursorPosition($mark);
+  var cur_pos = this.getCursorPosition();
+  var rowI = mark_pos.row - cur_pos.row;
+  rowI = rowI > 0 ? 1 : (rowI < 0 ? -1 : 0);
+  var colI = mark_pos.column - cur_pos.column;
+  colI = colI > 0 ? 1 : (colI < 0 ? -1 : 0);
+  this.fireEvent('cursor_moved', {row: rowI, column: colI});
+};
+
+Buffer.prototype.swapMarkAndCursor = function(){
+  var $c = this.$c;
+  var $mark = this.markRing.pop();
+  if($mark == null){
+    return; // nothing to do here now
+  }
+  var $prev = $c.prev();
+  $mark.after($c);
+  $prev.after($mark);
+  var mark_pos = this.getCursorPosition($mark);
+  var cur_pos = this.getCursorPosition();
+  var rowI = mark_pos.row - cur_pos.row;
+  rowI = rowI > 0 ? 1 : (rowI < 0 ? -1 : 0);
+  var colI = mark_pos.column - cur_pos.column;
+  colI = colI > 0 ? 1 : (colI < 0 ? -1 : 0);
+  this.fireEvent('cursor_moved', {row: rowI, column: colI});
+  
 };
 
 Buffer.prototype.addEventListner = function(event_type, handler){
@@ -534,3 +599,45 @@ function keyMap(code){
   }
   return ret;
 }   
+
+
+function Ring(size){
+  this.init.apply(this, arguments);
+};
+
+Ring.prototype.init = function(size){
+  this.size = size;
+  this.cur = null;
+  this.count = 0;
+};
+
+Ring.prototype.push = function(x){
+  if(this.cur == null){
+    this.root = this.cur = {};
+    this.cur.next = this.cur.prev = this.cur;
+    this.count++;
+  } else if(this.count >= this.size){
+    this.cur = this.cur.next;
+  } else {
+    this.cur.next = {prev: this.cur, next: this.cur.next};
+    this.cur.next.next.prev = this.cur.next;
+    this.cur = this.cur.next;
+    this.count++;
+  }
+  this.cur.value = x;
+};
+
+Ring.prototype.top = function(){
+  return this.cur == null ? null : this.cur.value;
+};
+
+Ring.prototype.pop = function(){
+  if(this.cur == null){
+    return null;
+  }
+  var ret = this.cur.value;
+  this.cur = this.cur.prev;
+  return ret;
+};
+
+
