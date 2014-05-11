@@ -384,7 +384,7 @@ Buffer.prototype.backspace = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $prev = $c.prev('span.char.normal');
+  var $prev = $c.prevAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($prev.length == 0){
     var $line = $c.parent('div.line');
@@ -411,7 +411,8 @@ Buffer.prototype.delete = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $next = $c.next('span.char.normal');
+  var $next = $c.nextAll('span.char.normal').first();
+  var pos = this.getCursorPosition();
   if($next.length == 0){
     var $line = $c.parent('div.line');
     var $nextLine = $line.next('div.line');
@@ -448,15 +449,17 @@ Buffer.prototype.moveCursorToEOL = function(){
 
 
 Buffer.prototype.moveCursorHorizontally = function(n){
+  // console.log(this);
+  // console.log(this.$c);
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
   var $line = $c.parent('div.line');
   //var up_or_down = 0;
   if(n<0){
-    var $prev = $c.prev('span.char');
+    var $prev = $c.prevAll('span.char').first();
     if($prev.length > 0){
-      $c.prev().before($c);
+      $prev.before($c);
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:-1});
     } else {
       var $preLine = $line.prev('div.line');
@@ -474,9 +477,9 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       }
     }
   } else if(n>0){
-    var $next = $c.next('span.char.normal');
+    var $next = $c.nextAll('span.char.normal').first();
     if($next.length > 0){
-      $c.next().after($c);
+      $next.after($c);
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     } else {
       var $nextLine = $line.next('div.line');
@@ -560,8 +563,8 @@ Buffer.prototype.moveCursorVertically = function(n){
 };
 Buffer.prototype.lineDelimiter = '\n';
 
-Buffer.prototype.getCursorPosition = function(){
-  var $c = this.$c;
+Buffer.prototype.getCursorPosition = function($target){
+  var $c = $target == null ? this.$c : $target;
   var column = $c.prevAll('span.char.normal').length;
   var row = $c.parent('div.line').prevAll('div.line').length + 1;
   return {row: row, column: column};
