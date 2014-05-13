@@ -283,7 +283,11 @@ Buffer.prototype.markSet = function(){
   if($c.prev().hasClass('mark')){
     // nothing to do here now
   } else {
-    $c.before('<span class="mark"></span>');
+    if(this.visibleMarkMode){
+      $c.before('<span class="mark visible"></span>');
+    } else {
+      $c.before('<span class="mark"></span>');
+    }
     this.markRing.push($c.prev());
   }
 };

@@ -79,5 +79,7 @@ html {
 .mark{
 		width: 0;
 		margin-left: -1px;
+}
+.mark.visible{ 
 		border-left: 2px dotted yellow;
 }
