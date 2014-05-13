@@ -12,7 +12,8 @@ $(function(){
   var keyEventMap = {};
   var modes = {default: keyEventMap};
   var current_mode = 'default';
-  var buffers = {'*scratch*' : new Buffer('#editor')};
+  var killRing = new Ring(16);
+  var buffers = {'*scratch*' : new Buffer('#editor', killRing)};
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
 
@@ -131,6 +132,10 @@ $(function(){
       keyEventMap['C-@'] = keyEventMap['C- '] = markSet;
       keyEventMap['C-xC-x'] = swapMarkAndCursor;
       keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = moveToPreMark;
+      keyEventMap['C-w'] = cutRegion;
+      keyEventMap['A-w'] = keyEventMap['M-w'] = copyRegion;
+      keyEventMap['C-y'] = yankRegion;
+      // TODO:Implement me! //  keyEventMap['M-y'] = keyEventMap['M-y'] = yankPrevRegion;
     }
 
     function prepareBasicKeyInputHandler(){
@@ -187,6 +192,21 @@ $(function(){
     function swapMarkAndCursor(opt){
       var buffer = opt.buffer;
       buffer.swapMarkAndCursor();
+    }
+
+    function cutRegion(opt){
+      var buffer = opt.buffer;
+      buffer.cutRegion();
+    }
+
+    function copyRegion(opt){
+      var buffer = opt.buffer;
+      buffer.copyRegion();
+    }
+
+    function yankRegion(opt){
+      var buffer = opt.buffer;
+      buffer.yankRegion();
     }
 
     function moveToPreMark(opt){
@@ -292,9 +312,100 @@ Buffer.prototype.markSet = function(){
   }
 };
 
-Buffer.prototype.moveToPreMark = function(){
+Buffer.prototype.copyRegion = copy_cut_func_gen(false);
+Buffer.prototype.cutRegion = copy_cut_func_gen(true);
+function copy_cut_func_gen(cut_option){
+  return function(){
+    var $c = this.$c;
+    var $mark = this.markRing.top();
+    var curPos = this.getCursorPosition();
+    var markPos = this.getCursorPosition($mark);
+    var same_row = curPos.row == markPos.row;
+    var $region = null;
+    var $former = null;
+    var $latter = null;
+    var $marks_in_region = null;
+    if(same_row){
+      if(curPos.column == markPos.column){
+        return; // nothing to do here
+      } else if(markPos.column < curPos.column){
+        $former = $mark;
+        $region = $mark.nextUntil($c, ':not(span.mark)');
+        $marks_in_region = $mark.nextUntil($c, 'span.mark');
+      } else {
+        $former = $c;
+        $region = $c.nextUntil($mark, ':not(span.mark)');
+        $marks_in_region = $c.nextUntil($mark, 'span.mark');
+      }
+    } else {
+      if(markPos.row < curPos.row){
+        $former = $mark;
+        $latter = $c;
+      } else {
+        $former = $c;
+            $latter = $mark;
+      }
+      var $firstLine = $former.nextAll(':not(span.mark)');
+      var $marks_in_firstLine = $former.nextAll('span.mark');
+      var $lines = $former.parent('div.line').nextUntil($latter.parent('div.line'), 'div.line');
+      var $marks_in_lines = $('span.mark', $lines);
+      // console.log('$marks_in_lines:');
+      // console.log($marks_in_lines);
+      var $lastLine = $latter.prevAll(':not(span.mark)');
+      var $marks_in_lastLine = $latter.prevAll('span.mark');
+      $region =$($.makeArray($firstLine)
+                 .concat($.makeArray($lines))
+                 .concat($.makeArray($lastLine)));
+      $marks_in_region =$($.makeArray($marks_in_firstLine)
+                          .concat($.makeArray($marks_in_lines))
+                          .concat($.makeArray($marks_in_lastLine)));
+      // console.log('$marks_in_region:');
+      // console.log($marks_in_region);
+    }
+    // console.log('#region:');
+    // console.log($region);
+    // console.log("$('span.mark', $region)");
+    // console.log($('span.mark', $region));
+    
+    
+    this.killRing.push($region);
+    if(cut_option){
+      $former.before($marks_in_region);
+      $region.remove();
+      if($former != null && $latter != null){
+        var $latterParent = $latter.parent('div.line');
+        var $latterNextAll = $latter.nextAll();
+        $former.parent('div.line').append($latter).append($latterNextAll);
+        $latterParent.remove();
+      }
+      if($latter == $c){
+        var motion = {row: 0, column: 0};
+        if(same_row){
+          motion.column = -1;
+        } else {
+          motion.column = curPos.column == markPos.column ? 0 : (curPos.column > markPos.column ? 1: -1);
+          motion.row = -1;
+        }
+        this.fireEvent('cursor_moved', motion);
+      }
+      this.fireEvent('modified_text', {buffer:this, removedChar:$region.text(), position:this.getCursorPosition() });
+    }
+    
+  };
+}
+
+Buffer.prototype.yankRegion = function(){
   var $c = this.$c;
-  var $mark = this.markRing.pop();
+  var $region = this.killRing.top();
+  var text = $region.text();
+  var self = this;
+  text.split('').forEach(function(c){self.insertChar(c);});
+};
+
+Buffer.prototype.moveToPreMark = function(){
+  // console.log(this.markRing);
+  var $c = this.$c;
+  var $mark = this.markRing.next();
   if($mark == null){
     return; // nothing to do here now
   }
@@ -310,7 +421,7 @@ Buffer.prototype.moveToPreMark = function(){
 
 Buffer.prototype.swapMarkAndCursor = function(){
   var $c = this.$c;
-  var $mark = this.markRing.pop();
+  var $mark = this.markRing.next();
   if($mark == null){
     return; // nothing to do here now
   }
@@ -343,9 +454,10 @@ Buffer.prototype.fireEvent = function(event_type, event){
   }
 };
 
-Buffer.prototype.init = function(selector){
+Buffer.prototype.init = function(selector, killRing){
   this.$editor = $(selector);
   this.uuid = generate_uuid();
+  this.killRing = killRing;
   this.reset();
 };
 
@@ -638,7 +750,7 @@ Ring.prototype.top = function(){
   return this.cur == null ? null : this.cur.value;
 };
 
-Ring.prototype.pop = function(){
+Ring.prototype.next = function(){
   if(this.cur == null){
     return null;
   }
