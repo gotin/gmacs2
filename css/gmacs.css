@@ -83,3 +83,6 @@ html {
 .mark.visible{ 
 		border-left: 2px dotted yellow;
 }
+.mark.visible.latest{
+		border-left: 2px dotted red;
+}

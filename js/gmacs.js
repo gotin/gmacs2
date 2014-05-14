@@ -8,10 +8,11 @@ $(function(){
   var ime = false;
   input.focus();
   $input.blur(function(){input.focus();}).focusout(function(){input.focus();});
-  setInterval(function(){$('#input:focus').length == 0 ? input.focus() : '';}, 100);
+  setInterval(function(){$('#input:focus').length == 0 && input.focus();}, 100);
   var keyEventMap = {};
-  var modes = {default: keyEventMap};
-  var current_mode = 'default';
+  var commands = {};
+  var modes = {default: {keyEventMap: keyEventMap, commands: commands}};
+  var current_mode = modes.default;
   var killRing = new Ring(16);
   var buffers = {'*scratch*' : new Buffer('#editor', killRing)};
   var current_buffer_title = '*scratch*';
@@ -29,9 +30,12 @@ $(function(){
       past_input = input = past_input + input;
       $footer.text(past_input);
     }
-    var func = modes[current_mode][input];
+    var command = keyEventMap[input];
+    var func = commands[command];
     if(func){
+      buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
+      buffer.fireEvent('command_executed', {buffer:buffer, command:command});
       var pos = buffer.getCursorPosition();
       $footer.text('(' + pos.row+','+pos.column+')');
       if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
@@ -108,9 +112,12 @@ $(function(){
       if(past_input){
         input = past_input + input;
       }
-      var func = modes[current_mode][input];
+      var command = keyEventMap[input];
+      var func = commands[command];
       if(func){
+        buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
+        buffer.fireEvent('command_executed', {buffer:buffer, command:command});
         var pos = buffer.getCursorPosition();
         $footer.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
@@ -129,13 +136,20 @@ $(function(){
     prepareMarkOperations();
 
     function prepareMarkOperations(){
-      keyEventMap['C-@'] = keyEventMap['C- '] = markSet;
-      keyEventMap['C-xC-x'] = swapMarkAndCursor;
-      keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = moveToPreMark;
-      keyEventMap['C-w'] = cutRegion;
-      keyEventMap['A-w'] = keyEventMap['M-w'] = copyRegion;
-      keyEventMap['C-y'] = yankRegion;
-      // TODO:Implement me! //  keyEventMap['M-y'] = keyEventMap['M-y'] = yankPrevRegion;
+      commands.markSet = markSet;
+      commands.swapMarkAndCursor = swapMarkAndCursor;
+      commands.moveToPreMark = moveToPreMark;
+      commands.cutRegion = cutRegion;
+      commands.copyRegion = copyRegion;
+      commands.yankRegion = yankRegion;
+      commands.yankPrevRegion = yankPrevRegion;
+      keyEventMap['C-@'] = keyEventMap['C- '] = 'markSet';
+      keyEventMap['C-xC-x'] = 'swapMarkAndCursor';
+      keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = 'moveToPreMark';
+      keyEventMap['C-w'] = 'cutRegion';
+      keyEventMap['A-w'] = keyEventMap['M-w'] = 'copyRegion';
+      keyEventMap['C-y'] = 'yankRegion';
+      keyEventMap['A-y'] = keyEventMap['M-y'] = 'yankPrevRegion';
     }
 
     function prepareBasicKeyInputHandler(){
@@ -143,23 +157,32 @@ $(function(){
         var char = String.fromCharCode(code);
         // console.log(char);
         var handler = generateKeyInputHandler(char);
-        keyEventMap[char] = handler;
-        keyEventMap['S-' + char] = handler;
+        var commandName = 'insertChar(' + char + ')';
+        commands[commandName] = handler;
+        keyEventMap[char] = commandName;
+        keyEventMap['S-' + char] = commandName;
       }
-      keyEventMap['C-m'] = keyEventMap['Enter'] = generateKeyInputHandler(buffer.lineDelimiter || '\n');
-      keyEventMap['C-h'] = keyEventMap['Backspace'] = backspace;
-      keyEventMap['C-d'] = keyEventMap['Del'] = deleteChar;
+      var insertLineDelimiter = generateKeyInputHandler(buffer.lineDelimiter || '\n');
+      commands.insertLineDelimiter = insertLineDelimiter;
+      keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
+      commands.backspace = backspace;
+      keyEventMap['C-h'] = keyEventMap['Backspace'] = 'backspace';
+      commands.deleteChar = deleteChar;
+      keyEventMap['C-d'] = keyEventMap['Del'] = 'deleteChar';
     }
 
     function prepareCombinationSequences(){
       setKeepSequenceHandler('C-u');
       setKeepSequenceHandler('C-x');
       setKeepSequenceHandler('C-c');
-      keyEventMap['C-xk'] = reset;
+      commands.reset = reset;
+      keyEventMap['C-xk'] = 'reset';
     }
 
     function setKeepSequenceHandler(sequence){
-      keyEventMap[sequence] = function(opt){
+      var commandName =  'keepSequence(' + sequence + ')';
+      keyEventMap[sequence] = commandName;
+      commands[commandName] = function(opt){
         if(past_input != null){
           past_input += sequence;
         } else {
@@ -209,6 +232,11 @@ $(function(){
       buffer.yankRegion();
     }
 
+    function yankPrevRegion(opt){
+      var buffer = opt.buffer;
+      buffer.yankPrevRegion();
+    };
+
     function moveToPreMark(opt){
       var buffer = opt.buffer;
       buffer.moveToPreMark();
@@ -225,27 +253,33 @@ $(function(){
     }
 
     function prepareCursorOperationHandler(){
-      keyEventMap['C-b'] = keyEventMap['Left'] = function(opt){
+      keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
+      commands.moveBack = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorHorizontally(-1);
       };
-      keyEventMap['C-f'] = keyEventMap['Right'] = function(opt){
+      keyEventMap['C-f'] = keyEventMap['Right'] = 'moveForward';
+      commands.moveForward = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorHorizontally(+1);
       };
-      keyEventMap['C-p'] = keyEventMap['Up'] = function(opt){
+      keyEventMap['C-p'] = keyEventMap['Up'] = 'movePreviousLine';
+      commands.movePreviousLine = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorVertically(-1);
       };
-      keyEventMap['C-n'] = keyEventMap['Down'] = function(opt){
+      keyEventMap['C-n'] = keyEventMap['Down'] = 'moveNextLine';
+      commands.moveNextLine = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorVertically(+1);
       };
-      keyEventMap['C-a'] = keyEventMap['Home'] = function(opt){
+      keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
+      commands.moveBOL = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorToBOL();
       };
-      keyEventMap['C-e'] = keyEventMap['End'] = function(opt){
+      keyEventMap['C-e'] = keyEventMap['End'] = 'moveEOL';
+      commands.moveEOL = function(opt){
         var buffer = opt.buffer;
         buffer.moveCursorToEOL();
       };
@@ -289,6 +323,7 @@ Buffer.prototype.reset = function(){
 
   this.eventHandlers = {};
   var self = this;
+
   this.addEventListner('cursor_moved', function(event){
     self.scrollToCursor(event.row || 0);
   });
@@ -296,6 +331,7 @@ Buffer.prototype.reset = function(){
   this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
   this.visibleMarkMode = true;
+  this.commandHistory = [];
 };
 
 Buffer.prototype.markSet = function(){
@@ -303,70 +339,85 @@ Buffer.prototype.markSet = function(){
   if($c.prev().hasClass('mark')){
     // nothing to do here now
   } else {
+    var $preMark = this.markRing.top();
+    $preMark && $preMark.removeClass('latest');
+    var $mark = null;
     if(this.visibleMarkMode){
-      $c.before('<span class="mark visible"></span>');
+      $mark = $('<span class="mark visible latest"></span>');
     } else {
-      $c.before('<span class="mark"></span>');
+      $mark = $('<span class="mark latest"></span>');
     }
-    this.markRing.push($c.prev());
+    $c.before($mark);
+    this.$latestMark = $mark;
+    this.markRing.push($mark);
   }
 };
+
+Buffer.prototype.region = function($mark){
+  var $c = this.$c;
+  var curPos = this.getCursorPosition();
+  var markPos = this.getCursorPosition($mark);
+  var same_row = curPos.row == markPos.row;
+  var $region = null;
+  var $former = null;
+  var $latter = null;
+  var $marks_in_region = null;
+  if(same_row){
+    if(curPos.column == markPos.column){
+      return null; // nothing to do here
+    } else if(markPos.column < curPos.column){
+      $former = $mark;
+      $region = $mark.nextUntil($c, ':not(span.mark)');
+      $marks_in_region = $mark.nextUntil($c, 'span.mark');
+    } else {
+      $former = $c;
+      $region = $c.nextUntil($mark, ':not(span.mark)');
+      $marks_in_region = $c.nextUntil($mark, 'span.mark');
+    }
+  } else {
+    if(markPos.row < curPos.row){
+      $former = $mark;
+      $latter = $c;
+    } else {
+      $former = $c;
+      $latter = $mark;
+    }
+    var $firstLine = $former.nextAll(':not(span.mark)');
+    var $marks_in_firstLine = $former.nextAll('span.mark');
+    var $lines = $former.parent('div.line').nextUntil($latter.parent('div.line'), 'div.line');
+    var $marks_in_lines = $('span.mark', $lines);
+    var $lastLine = $latter.prevAll(':not(span.mark)');
+    var $marks_in_lastLine = $latter.prevAll('span.mark');
+    $region =$($.makeArray($firstLine)
+               .concat($.makeArray($lines))
+               .concat($.makeArray($lastLine)));
+    $marks_in_region =$($.makeArray($marks_in_firstLine)
+                        .concat($.makeArray($marks_in_lines))
+                        .concat($.makeArray($marks_in_lastLine)));
+  }
+  return {$former: $former, $latter: $latter,
+          $region: $region, $marks_in_region: $marks_in_region,
+          curPos: curPos, markPos: markPos,
+          same_row: same_row
+         };
+};
+
 
 Buffer.prototype.copyRegion = copy_cut_func_gen(false);
 Buffer.prototype.cutRegion = copy_cut_func_gen(true);
 function copy_cut_func_gen(cut_option){
   return function(){
     var $c = this.$c;
-    var $mark = this.markRing.top();
-    var curPos = this.getCursorPosition();
-    var markPos = this.getCursorPosition($mark);
-    var same_row = curPos.row == markPos.row;
-    var $region = null;
-    var $former = null;
-    var $latter = null;
-    var $marks_in_region = null;
-    if(same_row){
-      if(curPos.column == markPos.column){
-        return; // nothing to do here
-      } else if(markPos.column < curPos.column){
-        $former = $mark;
-        $region = $mark.nextUntil($c, ':not(span.mark)');
-        $marks_in_region = $mark.nextUntil($c, 'span.mark');
-      } else {
-        $former = $c;
-        $region = $c.nextUntil($mark, ':not(span.mark)');
-        $marks_in_region = $c.nextUntil($mark, 'span.mark');
-      }
-    } else {
-      if(markPos.row < curPos.row){
-        $former = $mark;
-        $latter = $c;
-      } else {
-        $former = $c;
-            $latter = $mark;
-      }
-      var $firstLine = $former.nextAll(':not(span.mark)');
-      var $marks_in_firstLine = $former.nextAll('span.mark');
-      var $lines = $former.parent('div.line').nextUntil($latter.parent('div.line'), 'div.line');
-      var $marks_in_lines = $('span.mark', $lines);
-      // console.log('$marks_in_lines:');
-      // console.log($marks_in_lines);
-      var $lastLine = $latter.prevAll(':not(span.mark)');
-      var $marks_in_lastLine = $latter.prevAll('span.mark');
-      $region =$($.makeArray($firstLine)
-                 .concat($.makeArray($lines))
-                 .concat($.makeArray($lastLine)));
-      $marks_in_region =$($.makeArray($marks_in_firstLine)
-                          .concat($.makeArray($marks_in_lines))
-                          .concat($.makeArray($marks_in_lastLine)));
-      // console.log('$marks_in_region:');
-      // console.log($marks_in_region);
-    }
-    // console.log('#region:');
-    // console.log($region);
-    // console.log("$('span.mark', $region)");
-    // console.log($('span.mark', $region));
-    
+    // var $mark = this.markRing.top();
+    var $mark = this.$latestMark;
+    var ret = this.region($mark);
+    var curPos = ret.curPos;
+    var markPos = ret.markPos;
+    var $region = ret.$region;
+    var $former = ret.$former;
+    var $latter = ret.$latter;
+    var $marks_in_region = ret.$marks_in_region;
+    var same_row = ret.same_row;
     
     this.killRing.push($region);
     if(cut_option){
@@ -399,7 +450,43 @@ Buffer.prototype.yankRegion = function(){
   var $region = this.killRing.top();
   var text = $region.text();
   var self = this;
+  var $BOY = $('<span class="BOY"></span>');
+  $c.before($BOY);
   text.split('').forEach(function(c){self.insertChar(c);});
+  this.$BOY = $BOY;
+  var buffer = this;
+  var func = function(e){
+    console.log('in command_executed event handler:');
+    console.log(e.command);
+    if(e.command != 'yankRegion' && e.command != 'yankPrevRegion'){
+      buffer.$BOY.remove();
+      delete buffer.$BOY;
+      buffer.removeEventListner('command_executed', func);
+    }
+  };
+  this.addEventListner('command_executed',func);
+  // TODO:fire event
+};
+
+Buffer.prototype.yankPrevRegion = function(){
+  var $c = this.$c;
+  var $mark = this.$BOY;
+  console.log($mark);
+  if($mark == null){
+    $footer.text('Previous command was not a yank.');
+    return;
+  }
+  var $region_next = this.killRing.top();
+  if($region_next){
+    var ret = this.region($mark);
+    var $region = ret.$region;
+    $region.remove();
+    this.killRing.next();
+
+    $mark.after($region_next);
+  }
+
+  // TODO:fire event
 };
 
 Buffer.prototype.moveToPreMark = function(){
@@ -438,12 +525,29 @@ Buffer.prototype.swapMarkAndCursor = function(){
   
 };
 
+Buffer.prototype.removeEventListner = function(event_type, handler){
+  var handlers = this.eventHandlers[event_type];
+  var handlerIndex = this.eventHandlersIndex[event_type];
+  var index = handlerIndex[handler];
+  if(index){
+    handlers.splice(index, 1);
+  }
+  
+};
+
 Buffer.prototype.addEventListner = function(event_type, handler){
   // white list check should be needed for event_type
   if(this.eventHandlers[event_type] == null){
     this.eventHandlers[event_type] = [];
   }
+  if(this.eventHandlersIndex == null){
+    this.eventHandlersIndex = {};
+  }
+  if(this.eventHandlersIndex[event_type] == null){
+    this.eventHandlersIndex[event_type] = {};
+  }
   this.eventHandlers[event_type].push(handler);
+  this.eventHandlersIndex[event_type][handler] = this.eventHandlers[event_type].length - 1;
 };
 Buffer.prototype.fireEvent = function(event_type, event){
   var handlers = this.eventHandlers[event_type];
