@@ -459,8 +459,10 @@ Buffer.prototype.yankRegion = function(){
     console.log('in command_executed event handler:');
     console.log(e.command);
     if(e.command != 'yankRegion' && e.command != 'yankPrevRegion'){
-      buffer.$BOY.remove();
-      delete buffer.$BOY;
+      if(buffer.$BOY){
+        buffer.$BOY.remove();
+        delete buffer.$BOY;
+      }
       buffer.removeEventListner('command_executed', func);
     }
   };
@@ -476,14 +478,16 @@ Buffer.prototype.yankPrevRegion = function(){
     $footer.text('Previous command was not a yank.');
     return;
   }
+  this.killRing.next();
   var $region_next = this.killRing.top();
   if($region_next){
     var ret = this.region($mark);
-    var $region = ret.$region;
-    $region.remove();
-    this.killRing.next();
-
-    $mark.after($region_next);
+    var $yanked_region = ret.$region;
+    $yanked_region.remove();
+    var text = $region_next.text();
+    $mark.after($c);
+    var self = this;
+    text.split('').forEach(function(c){self.insertChar(c);});
   }
 
   // TODO:fire event
@@ -574,8 +578,9 @@ Buffer.prototype.insertLineDelimiter = function(){
     .parent('div.line').removeClass('current')
     .after('<div class="line current"></div>')
     .next('div.line')
-    .append($('span.cursor, span.cursor ~ span.char, span.cursor'));
-
+    //.append($('span.cursor, span.cursor ~ span.char, span.cursor ~ span.mark'));
+    .append($($.makeArray($c).concat($.makeArray($c.nextAll('span.char, span.mark')))));
+  
   this.fireEvent('cursor_moved', {buffer:this,row:+1, col:-1});
   this.fireEvent('modified_text', {buffer:this, insertedChar:'\n', position:pos});
 
@@ -655,6 +660,9 @@ Buffer.prototype.moveCursorToBOL = function(){
   this.cursorX = -1;
   var $line = $c.parent('div.line');
   $('span.char.normal', $line).first().before($c);
+  while($c.next().hasClass('mark')){
+    $c.next().after($c);
+  }
   this.fireEvent('cursor_moved', {buffer:this, row:0, col:-1});
 };
 
@@ -664,6 +672,9 @@ Buffer.prototype.moveCursorToEOL = function(){
   this.cursorX = -1;
   var $line = $c.parent('div.line');
   $('span.char.normal', $line).last().after($c);
+  while($c.next().hasClass('mark')){
+    $c.next().after($c);
+  }
   this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
 };
 
@@ -690,6 +701,9 @@ Buffer.prototype.moveCursorHorizontally = function(n){
         } else {
           $preLine.prepend($c);
         }
+        while($c.next().hasClass('mark')){
+          $c.next().after($c);
+        }
         $line.removeClass('current');
         $preLine.addClass('current');
         //up_or_down = -1;
@@ -700,11 +714,17 @@ Buffer.prototype.moveCursorHorizontally = function(n){
     var $next = $c.nextAll('span.char.normal').first();
     if($next.length > 0){
       $next.after($c);
+      while($c.next().hasClass('mark')){
+        $c.next().after($c);
+      }
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     } else {
       var $nextLine = $line.next('div.line');
       if($nextLine.length > 0){
         $nextLine.prepend($c);
+        while($c.next().hasClass('mark')){
+          $c.next().after($c);
+        }
         $line.removeClass('current');
         $nextLine.addClass('current');
         //up_or_down = +1;
