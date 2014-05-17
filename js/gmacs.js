@@ -33,7 +33,7 @@ $(function(){
     var command = keyEventMap[input];
     var func = commands[command];
     if(func){
-      buffer.commandHistory.push(command);
+      // buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
       buffer.fireEvent('command_executed', {buffer:buffer, command:command});
       var pos = buffer.getCursorPosition();
@@ -115,7 +115,7 @@ $(function(){
       var command = keyEventMap[input];
       var func = commands[command];
       if(func){
-        buffer.commandHistory.push(command);
+        // buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
         buffer.fireEvent('command_executed', {buffer:buffer, command:command});
         var pos = buffer.getCursorPosition();
@@ -422,13 +422,19 @@ function copy_cut_func_gen(cut_option){
     this.killRing.push($region);
     if(cut_option){
       $former.before($marks_in_region);
-      $region.remove();
-      if($former != null && $latter != null){
-        var $latterParent = $latter.parent('div.line');
-        var $latterNextAll = $latter.nextAll();
-        $former.parent('div.line').append($latter).append($latterNextAll);
-        $latterParent.remove();
+      // $region.remove();
+      if($former.hasClass('mark')){
+        this.swapMarkAndCursor();
       }
+      while(!$c.next().hasClass('mark')){
+        this.delete();
+      }
+      // if($former != null && $latter != null){
+      //   var $latterParent = $latter.parent('div.line');
+      //   var $latterNextAll = $latter.nextAll();
+      //   $former.parent('div.line').append($latter).append($latterNextAll);
+      //   $latterParent.remove();
+      // }
       if($latter == $c){
         var motion = {row: 0, column: 0};
         if(same_row){
@@ -574,6 +580,7 @@ Buffer.prototype.insertLineDelimiter = function(){
   if(!this.enabled) return;
   var pos = this.getCursorPosition();
   var $c = this.$c;
+  var count = this.count();
   var next = $c.before('<span class="char line_delimiter"><br />\n</span>')
     .parent('div.line').removeClass('current')
     .after('<div class="line current"></div>')
@@ -583,13 +590,35 @@ Buffer.prototype.insertLineDelimiter = function(){
   
   this.fireEvent('cursor_moved', {buffer:this,row:+1, col:-1});
   this.fireEvent('modified_text', {buffer:this, insertedChar:'\n', position:pos});
+  
+  this.commandHistory.push({o:'w', c:'\n', p: count});
+  console.log(this.commandHistory);
+  
+};
 
+Buffer.prototype.count = function($c){
+  if($c == null){
+    $c = this.$c;
+  }
+  var $prevChar = $c.prev('span.char');
+  if($prevChar.length == 0){
+    var $preLine = $c.parent('div.line').prev('div.line');
+    if($preLine.length > 0){
+      $prevChar = $preLine.children('span.char').last();
+    } else {
+      // very begining
+      return 0;
+    }
+  }
+  return $('span.char', this.$editor).index($prevChar)+1;
 };
 
 Buffer.prototype.insertChar = function(c){
   if(!this.enabled) return;
   // console.log(c);
   var $c = this.$c;
+  var count = this.count();
+
   this.cursorX = -1;
   if(c == (this.lineDelimiter || '\n')){
     this.insertLineDelimiter();
@@ -604,10 +633,14 @@ Buffer.prototype.insertChar = function(c){
     this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     this.fireEvent('modified_text', {buffer:this, insertedChar:c, position:pos});
   }
+  this.commandHistory.push({o:'w', c:c, p: count});
+  console.log(this.commandHistory);
 };
 Buffer.prototype.backspace = function(){
   if(!this.enabled) return;
   var $c = this.$c;
+  var c = null;
+  var count = this.count();
   this.cursorX = -1;
   var $prev = $c.prevAll('span.char.normal').first();
   var pos = this.getCursorPosition();
@@ -615,26 +648,28 @@ Buffer.prototype.backspace = function(){
     var $line = $c.parent('div.line');
     var $preLine = $line.prev('div.line');
     if($preLine.length > 0){
+      c = '\n';
       $('span.char.line_delimiter', $preLine).remove();
       $preLine.addClass('current');
       $preLine.append($line.children());
       $line.remove();
       this.fireEvent('cursor_moved', {row:-1, col:+1});
       this.fireEvent('modified_text', {buffer:this, removedChar:'\n', position:pos});
-
-      
     }
   } else {
-    var c = $prev.text();
+    c = $prev.text();
     $prev.remove();
     this.fireEvent('cursor_moved', {row:0, col:-1});
     this.fireEvent('modified_text', {buffer:this, removedChar:c, position:pos});
   }
+  this.commandHistory.push({o:'d', c:c, p: count-1});
 };
 
 Buffer.prototype.delete = function(){
   if(!this.enabled) return;
   var $c = this.$c;
+  var count = this.count();
+  var c = null;
   this.cursorX = -1;
   var $next = $c.nextAll('span.char.normal').first();
   var pos = this.getCursorPosition();
@@ -642,16 +677,18 @@ Buffer.prototype.delete = function(){
     var $line = $c.parent('div.line');
     var $nextLine = $line.next('div.line');
     if($nextLine.length > 0){
+      c = '\n';
       $('span.char.line_delimiter', $line).remove();
       $line.append($nextLine.children());
       $nextLine.remove();
       this.fireEvent('modified_text', {buffer:this, removedChar:'\n', position:pos});
     }
   } else {
-    var c = $next.text();
+    c = $next.text();
     $next.remove();
     this.fireEvent('modified_text', {buffer:this, removedChar:c, position:pos});
   }
+  this.commandHistory.push({o:'d', c:c, p: count});
 };
 
 Buffer.prototype.moveCursorToBOL = function(){
