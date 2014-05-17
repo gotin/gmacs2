@@ -32,6 +32,8 @@ $(function(){
     }
     var command = keyEventMap[input];
     var func = commands[command];
+    // console.log(input);
+    // console.log(command);
     if(func){
       // buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
@@ -95,10 +97,20 @@ $(function(){
   }).keydown(function(e){
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     keyDown = e.keyCode;
-
+    // console.log(keyDown);
     var input = null;
     if(mod.match(/(A|M|C){1,3}/)){
-      input = mod + '-' + String.fromCharCode(keyDown).toLowerCase();
+      var c = String.fromCharCode(keyDown);
+      if(keyDown == 191){
+        c = '/';
+      } else if(keyDown == 173){
+        c = '-';
+      } else if(keyDown == 188){
+        c = ',';
+      } else if(keyDown == 190){
+        c = '.';
+      }
+      input = mod + '-' + c.toLowerCase();
       keyDown = null;
     } else {
       input = vkCodeMap[keyDown];
@@ -114,6 +126,8 @@ $(function(){
       }
       var command = keyEventMap[input];
       var func = commands[command];
+      // console.log(input);
+      // console.log(command);
       if(func){
         // buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
@@ -134,6 +148,14 @@ $(function(){
     prepareCursorOperationHandler();
     prepareCombinationSequences();
     prepareMarkOperations();
+    prepareUndoRedoOperations();
+
+    function prepareUndoRedoOperations(){
+      commands.undo = undo;
+      commands.redo = redo;
+      keyEventMap['C-/'] = keyEventMap['C--'] = 'undo';
+      keyEventMap['C-.'] = keyEventMap['C-,'] = 'redo';
+    }
 
     function prepareMarkOperations(){
       commands.markSet = markSet;
@@ -252,6 +274,16 @@ $(function(){
       buffer.delete();
     }
 
+    function undo(opt){
+      var buffer = opt.buffer;
+      buffer.undo();
+    }
+
+    function redo(opt){
+      var buffer = opt.buffer;
+      buffer.redo();
+    }
+
     function prepareCursorOperationHandler(){
       keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
       commands.moveBack = function(opt){
@@ -331,7 +363,8 @@ Buffer.prototype.reset = function(){
   this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
   this.visibleMarkMode = true;
-  this.commandHistory = [];
+  this.commandHistory = new LinkedList(16);
+  this.commandHistory.push({o:null,c:null,p:null});
 };
 
 Buffer.prototype.markSet = function(){
@@ -462,8 +495,8 @@ Buffer.prototype.yankRegion = function(){
   this.$BOY = $BOY;
   var buffer = this;
   var func = function(e){
-    console.log('in command_executed event handler:');
-    console.log(e.command);
+    // console.log('in command_executed event handler:');
+    // console.log(e.command);
     if(e.command != 'yankRegion' && e.command != 'yankPrevRegion'){
       if(buffer.$BOY){
         buffer.$BOY.remove();
@@ -479,7 +512,7 @@ Buffer.prototype.yankRegion = function(){
 Buffer.prototype.yankPrevRegion = function(){
   var $c = this.$c;
   var $mark = this.$BOY;
-  console.log($mark);
+  // console.log($mark);
   if($mark == null){
     $footer.text('Previous command was not a yank.');
     return;
@@ -497,6 +530,13 @@ Buffer.prototype.yankPrevRegion = function(){
   }
 
   // TODO:fire event
+};
+
+Buffer.prototype.moveCursorAt = function(pos){
+  var $char = $($('span.char', this.$editor).get(pos));
+  if($char.length == null) return;
+  $char.before(this.$c);
+  
 };
 
 Buffer.prototype.moveToPreMark = function(){
@@ -575,12 +615,9 @@ Buffer.prototype.init = function(selector, killRing){
   this.reset();
 };
 
-
-Buffer.prototype.insertLineDelimiter = function(){
-  if(!this.enabled) return;
+Buffer.prototype.insertLineDelimiterCore = function(){
   var pos = this.getCursorPosition();
   var $c = this.$c;
-  var count = this.count();
   var next = $c.before('<span class="char line_delimiter"><br />\n</span>')
     .parent('div.line').removeClass('current')
     .after('<div class="line current"></div>')
@@ -590,9 +627,14 @@ Buffer.prototype.insertLineDelimiter = function(){
   
   this.fireEvent('cursor_moved', {buffer:this,row:+1, col:-1});
   this.fireEvent('modified_text', {buffer:this, insertedChar:'\n', position:pos});
-  
+};
+
+Buffer.prototype.insertLineDelimiter = function(){
+  if(!this.enabled) return;
+  var count = this.count();
+  this.insertLineDelimiterCore();
   this.commandHistory.push({o:'w', c:'\n', p: count});
-  console.log(this.commandHistory);
+  // console.log(this.commandHistory);
   
 };
 
@@ -613,15 +655,11 @@ Buffer.prototype.count = function($c){
   return $('span.char', this.$editor).index($prevChar)+1;
 };
 
-Buffer.prototype.insertChar = function(c){
-  if(!this.enabled) return;
-  // console.log(c);
+Buffer.prototype.insertCharCore = function(c){
   var $c = this.$c;
-  var count = this.count();
-
   this.cursorX = -1;
   if(c == (this.lineDelimiter || '\n')){
-    this.insertLineDelimiter();
+    this.insertLineDelimiterCore();
   } else {
     var pos = this.getCursorPosition();
     if(c == ' '){
@@ -633,8 +671,18 @@ Buffer.prototype.insertChar = function(c){
     this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     this.fireEvent('modified_text', {buffer:this, insertedChar:c, position:pos});
   }
+};
+
+Buffer.prototype.insertChar = function(c){
+  if(!this.enabled) return;
+  if(c == (this.lineDelimiter || '\n')){
+    this.insertLineDelimiter();
+    return;
+  }
+  var count = this.count();
+  this.insertCharCore(c);
   this.commandHistory.push({o:'w', c:c, p: count});
-  console.log(this.commandHistory);
+  // console.log(this.commandHistory);
 };
 Buffer.prototype.backspace = function(){
   if(!this.enabled) return;
@@ -665,10 +713,8 @@ Buffer.prototype.backspace = function(){
   this.commandHistory.push({o:'d', c:c, p: count-1});
 };
 
-Buffer.prototype.delete = function(){
-  if(!this.enabled) return;
+Buffer.prototype.deleteCore = function(){
   var $c = this.$c;
-  var count = this.count();
   var c = null;
   this.cursorX = -1;
   var $next = $c.nextAll('span.char.normal').first();
@@ -688,6 +734,13 @@ Buffer.prototype.delete = function(){
     $next.remove();
     this.fireEvent('modified_text', {buffer:this, removedChar:c, position:pos});
   }
+  return c;
+};
+
+Buffer.prototype.delete = function(){
+  if(!this.enabled) return;
+  var count = this.count();
+  var c = this.deleteCore();
   this.commandHistory.push({o:'d', c:c, p: count});
 };
 
@@ -847,6 +900,43 @@ Buffer.prototype.getCursorPosition = function($target){
   return {row: row, column: column};
 };
 
+Buffer.prototype.undo = function(){
+  var command =this.commandHistory.cur();
+  if(command == null){
+    return;
+  }
+  this.commandHistory.prev();
+  if(command.p >= 0){
+    this.moveCursorAt(command.p);
+    var operation = command.o;
+    if(operation == 'w'){
+      this.deleteCore();
+    } else if(operation == 'd'){
+      this.insertCharCore(command.c);
+    }
+  }
+};
+
+Buffer.prototype.redo = function(){
+  if(!this.commandHistory.next()){
+    return;
+  }
+  var command =this.commandHistory.cur();
+  if(command == null){
+    return;
+  }
+  if(command.p >= 0){
+    this.moveCursorAt(command.p);
+    var operation = command.o;
+    if(operation == 'd'){
+      this.deleteCore();
+    } else if(operation == 'w'){
+      this.insertCharCore(command.c);
+    }
+  }
+};
+
+
 var vkCodeMap = {
   8: 'Backspace',
   9: 'Tab',
@@ -920,4 +1010,76 @@ Ring.prototype.next = function(){
   return ret;
 };
 
+function LinkedList(size){
+  this.init.apply(this, arguments);
+}
 
+LinkedList.prototype.init = function(size){
+  this.position = -1;
+  this.current = null;
+  this.root = null;
+  this.end = null;
+  this.size = size;
+  this.count = 0;
+};
+
+LinkedList.prototype.push = function(v){
+  var element = {value: v, prev: null, next: null};
+  if(this.current == null){
+    this.root = this.end = this.current = element;
+  } else {
+    this.end = this.current.next = element;
+    element.prev = this.current;
+    this.current = element;
+  }
+  this.position++;
+  this.count = this.position + 1;
+  if(this.count > this.size){
+    this.root = this.root.next;
+    this.root.prev = null;
+  }
+};
+
+LinkedList.prototype.prev = function(){
+  var ret = false;
+  var element = this.current;
+  if(element == null){
+    // nothing to do here
+  } else {
+    var prev = element.prev;
+    if(prev == null){
+      // nothing to do here
+    } else {
+      this.current = prev;
+      this.position--;
+      ret = true;
+    }
+  }
+  return ret;
+};
+
+LinkedList.prototype.next = function(){
+  var ret = false;
+  var element = this.current;
+  if(element == null){
+    // nothing to do here
+  } else {
+    var next = element.next;
+    if(next == null){
+      // nothing to do here
+    } else {
+      this.current = next;
+      this.position++;
+      ret = true;
+    }
+  }
+  return ret;
+};
+
+LinkedList.prototype.cur = function(){
+  var element = this.current;
+  if(element == null){
+    return null;
+  }
+  return element.value;
+};
