@@ -1,7 +1,8 @@
 var $input = $('#input');
 var input = $input.get(0);
 var $d = $(document);
-var $footer = $('#footer');
+var $status = $('#status');
+var $mb = $('#mini-buffer');
 var $body = $('html,body');
 $(function(){
   $input.val('');
@@ -14,7 +15,7 @@ $(function(){
   var modes = {default: {keyEventMap: keyEventMap, commands: commands}};
   var current_mode = modes.default;
   var killRing = new Ring(16);
-  var buffers = {'*scratch*' : new Buffer('#editor', killRing)};
+  var buffers = {'*scratch*' : new Buffer('#buffer', killRing)};
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
 
@@ -28,7 +29,7 @@ $(function(){
   function invokeHandler(input){
     if(past_input != null){
       past_input = input = past_input + input;
-      $footer.text(past_input);
+      $mb.text(past_input);
     }
     var command = keyEventMap[input];
     var func = commands[command];
@@ -39,12 +40,13 @@ $(function(){
       var status = func({buffer:buffer});
       buffer.fireEvent('command_executed', {buffer:buffer, command:command});
       var pos = buffer.getCursorPosition();
-      $footer.text('(' + pos.row+','+pos.column+')');
+      $status.text('(' + pos.row+','+pos.column+')');
       if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
         past_input = null;
+        $mb.text('');
       }
     } else {
-      $footer.text('');
+      $mb.text('');
       past_input = null;
     }
   }
@@ -62,7 +64,7 @@ $(function(){
         clearInterval(timer);
         $input.css('z-index', '1');
         var pos = buffer.getCursorPosition();
-        $footer.text('(' + pos.row+','+pos.column+')');
+        $status.text('(' + pos.row+','+pos.column+')');
       }
     },10);
     ime = false;
@@ -133,11 +135,13 @@ $(function(){
         var status = func({buffer:buffer});
         buffer.fireEvent('command_executed', {buffer:buffer, command:command});
         var pos = buffer.getCursorPosition();
-        $footer.text('(' + pos.row+','+pos.column+')');
+        $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
           past_input = null;
+          $mb.text('');
         }
       } else {
+        $mb.text('');
         keyDownHit = !!keyDown;
       }
     }
@@ -210,7 +214,7 @@ $(function(){
         } else {
           past_input = sequence;
         }
-        $footer.text(past_input);
+        $mb.text(past_input);
         // console.log(past_input);
         return {keepPastInput : true};
       };
@@ -338,7 +342,7 @@ function generate_uuid(){
 
 Buffer.prototype.reset = function(){
   var uuid = this.uuid;
-  var $e = this.$editor;
+  var $e = this.$buffer;
   $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>');
   this.uuid = uuid;
   var $c = $('#cursor_' + uuid);
@@ -514,7 +518,7 @@ Buffer.prototype.yankPrevRegion = function(){
   var $mark = this.$BOY;
   // console.log($mark);
   if($mark == null){
-    $footer.text('Previous command was not a yank.');
+    $mb.text('Previous command was not a yank.');
     return;
   }
   this.killRing.next();
@@ -534,7 +538,7 @@ Buffer.prototype.yankPrevRegion = function(){
 
 Buffer.prototype.moveCursorAt = function(pos){
   var $c = this.$c;
-  var $chars = $($('span.char', this.$editor));
+  var $chars = $($('span.char', this.$buffer));
   if($chars.length > pos){
     var $char = $($chars.get(pos));
     $char.before($c);
@@ -618,7 +622,7 @@ Buffer.prototype.fireEvent = function(event_type, event){
 };
 
 Buffer.prototype.init = function(selector, killRing){
-  this.$editor = $(selector);
+  this.$buffer = $(selector);
   this.uuid = generate_uuid();
   this.killRing = killRing;
   this.reset();
@@ -661,7 +665,7 @@ Buffer.prototype.count = function($c){
       return 0;
     }
   }
-  return $('span.char', this.$editor).index($prevChar)+1;
+  return $('span.char', this.$buffer).index($prevChar)+1;
 };
 
 Buffer.prototype.insertCharCore = function(c){
@@ -848,7 +852,7 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
     + h('margin-bottom') + h('border-bottom') + h('padding-bottom');
   
   var top = $c.offset().top - (up_or_down > 0 ? window.innerHeight : 0)
-    + (up_or_down > 0 ? 1 : -1) * line_height * 3 + (up_or_down > 0 ? $footer.height() : 0);
+    + (up_or_down > 0 ? 1 : -1) * line_height * 3 + (up_or_down > 0 ? ($status.height() + $mb.height()) : 0);
   // TODO: number 3 above should be customizable
 
   var current_top = $d.scrollTop();
