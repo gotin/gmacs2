@@ -533,9 +533,18 @@ Buffer.prototype.yankPrevRegion = function(){
 };
 
 Buffer.prototype.moveCursorAt = function(pos){
-  var $char = $($('span.char', this.$editor).get(pos));
-  if($char.length == null) return;
-  $char.before(this.$c);
+  var $c = this.$c;
+  var $chars = $($('span.char', this.$editor));
+  if($chars.length > pos){
+    var $char = $($chars.get(pos));
+    $char.before($c);
+  } else if($chars.length == pos){
+    $chars.last().after($c);
+    while($c.next().hasClass('mark')){
+      $c.next().after($c);
+    }
+  } 
+
   
 };
 
@@ -642,7 +651,7 @@ Buffer.prototype.count = function($c){
   if($c == null){
     $c = this.$c;
   }
-  var $prevChar = $c.prev('span.char');
+  var $prevChar = $c.prevAll('span.char').first();
   if($prevChar.length == 0){
     var $preLine = $c.parent('div.line').prev('div.line');
     if($preLine.length > 0){
