@@ -386,7 +386,8 @@ Buffer.prototype.markSet = function(){
     }
     $c.before($mark);
     this.$latestMark = $mark;
-    this.markRing.push($mark);
+    var $pop = this.markRing.push($mark);
+    $pop.remove();
   }
 };
 
@@ -537,6 +538,7 @@ Buffer.prototype.yankPrevRegion = function(){
 };
 
 Buffer.prototype.moveCursorAt = function(pos){
+  if(typeof pos != 'number')return;
   var $c = this.$c;
   var $chars = $($('span.char', this.$buffer));
   if($chars.length > pos){
@@ -914,14 +916,18 @@ Buffer.prototype.getCursorPosition = function($target){
 };
 
 Buffer.prototype.undo = function(){
-  var command =this.commandHistory.cur();
+  var command = this.commandHistory.cur();
+  // console.log(command);
   if(command == null){
+    return;
+  }
+  var operation = command.o;
+  if(operation != 'w' && operation != 'd'){
     return;
   }
   this.commandHistory.prev();
   if(command.p >= 0){
     this.moveCursorAt(command.p);
-    var operation = command.o;
     if(operation == 'w'){
       this.deleteCore();
     } else if(operation == 'd'){
@@ -934,13 +940,17 @@ Buffer.prototype.redo = function(){
   if(!this.commandHistory.next()){
     return;
   }
-  var command =this.commandHistory.cur();
+  var command = this.commandHistory.cur();
+  // console.log(command);
   if(command == null){
+    return;
+  }
+  var operation = command.o;
+  if(operation != 'w' && operation != 'd'){
     return;
   }
   if(command.p >= 0){
     this.moveCursorAt(command.p);
-    var operation = command.o;
     if(operation == 'd'){
       this.deleteCore();
     } else if(operation == 'w'){
@@ -995,11 +1005,13 @@ Ring.prototype.init = function(size){
 };
 
 Ring.prototype.push = function(x){
+  var pop = null;
   if(this.cur == null){
     this.root = this.cur = {};
     this.cur.next = this.cur.prev = this.cur;
     this.count++;
   } else if(this.count >= this.size){
+    pop = this.cur.next.value;
     this.cur = this.cur.next;
   } else {
     this.cur.next = {prev: this.cur, next: this.cur.next};
@@ -1008,6 +1020,7 @@ Ring.prototype.push = function(x){
     this.count++;
   }
   this.cur.value = x;
+  return pop;
 };
 
 Ring.prototype.top = function(){
@@ -1048,8 +1061,12 @@ LinkedList.prototype.push = function(v){
   this.position++;
   this.count = this.position + 1;
   if(this.count > this.size){
-    this.root = this.root.next;
-    this.root.prev = null;
+    // this.root = this.root.next;
+    // this.root.prev = null;
+    this.root.next = this.root.next.next;
+    this.root.next.prev = this.root;
+    this.position--;
+    this.count--;
   }
 };
 
