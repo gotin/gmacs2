@@ -63,8 +63,6 @@ $(function(){
     }
     var command = keyEventMap[input];
     var func = commands[command];
-    // console.log(input);
-    // console.log(command);
     if(func){
       // buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
@@ -112,6 +110,7 @@ $(function(){
         input = mod ? mod + '-' + char : char;
       }
       if(input){
+        // console.log(input);
         // console.log('charCode: ' + e.charCode);
         // console.log('keyCode: ' + e.keyCode);
         // console.log('converted char: ' + char);
@@ -139,10 +138,17 @@ $(function(){
         c = '-';
       } else if(keyDown == 188){
         c = ',';
+      } else if(keyDown == 189){ // safari 
+        c = '-';
       } else if(keyDown == 190){
         c = '.';
+      } else if(keyDown == 229){ // safari 
+        c = '/';
+      } else if(keyDown == 219){ // safari 
+        c = '@';
       }
       input = mod + '-' + c.toLowerCase();
+      // console.log(input);
       keyDown = null;
     } else {
       input = vkCodeMap[keyDown];
@@ -175,87 +181,65 @@ $(function(){
       }
     }
   });
-  
-  function prepareKeyEventMap(){
-    prepareBasicKeyInputHandler();
-    prepareCursorOperationHandler();
-    prepareCombinationSequences();
-    prepareMarkOperations();
-    prepareUndoRedoOperations();
+});
 
-    function prepareUndoRedoOperations(){
-      commands.undo = undo;
-      commands.redo = redo;
-      keyEventMap['C-/'] = keyEventMap['C--'] = 'undo';
-      keyEventMap['C-.'] = keyEventMap['C-,'] = 'redo';
-    }
+function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
+  prepareBasicKeyInputHandler();
+  prepareCursorOperationHandler();
+  prepareCombinationSequences();
+  prepareMarkOperations();
+  prepareUndoRedoOperations();
 
-    function prepareMarkOperations(){
-      commands.markSet = markSet;
-      commands.swapMarkAndCursor = swapMarkAndCursor;
-      commands.moveToPreMark = moveToPreMark;
-      commands.cutRegion = cutRegion;
-      commands.copyRegion = copyRegion;
-      commands.yankRegion = yankRegion;
-      commands.yankPrevRegion = yankPrevRegion;
-      keyEventMap['C-@'] = keyEventMap['C- '] = 'markSet';
-      keyEventMap['C-xC-x'] = 'swapMarkAndCursor';
-      keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = 'moveToPreMark';
-      keyEventMap['C-w'] = 'cutRegion';
-      keyEventMap['A-w'] = keyEventMap['M-w'] = 'copyRegion';
-      keyEventMap['C-y'] = 'yankRegion';
-      keyEventMap['A-y'] = keyEventMap['M-y'] = 'yankPrevRegion';
-    }
+  function prepareUndoRedoOperations(){
+    commands.undo = undo;
+    commands.redo = redo;
+    keyEventMap['C-/'] = keyEventMap['C--'] = 'undo';
+    keyEventMap['C-.'] = keyEventMap['C-,'] = 'redo';
+  }
 
-    function prepareBasicKeyInputHandler(){
-      for(var code=32;code <= 126; code++){
-        var char = String.fromCharCode(code);
-        // console.log(char);
-        var handler = generateKeyInputHandler(char);
-        var commandName = 'insertChar(' + char + ')';
-        commands[commandName] = handler;
-        keyEventMap[char] = commandName;
-        keyEventMap['S-' + char] = commandName;
-      }
-      var insertLineDelimiter = generateKeyInputHandler(buffer.lineDelimiter || '\n');
-      commands.insertLineDelimiter = insertLineDelimiter;
-      keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
-      commands.backspace = backspace;
-      keyEventMap['C-h'] = keyEventMap['Backspace'] = 'backspace';
-      commands.deleteChar = deleteChar;
-      keyEventMap['C-d'] = keyEventMap['Del'] = 'deleteChar';
-    }
+  function prepareMarkOperations(){
+    commands.markSet = markSet;
+    commands.swapMarkAndCursor = swapMarkAndCursor;
+    commands.moveToPreMark = moveToPreMark;
+    commands.cutRegion = cutRegion;
+    commands.copyRegion = copyRegion;
+    commands.yankRegion = yankRegion;
+    commands.yankPrevRegion = yankPrevRegion;
+    keyEventMap['C-@'] = keyEventMap['C- '] = 'markSet';
+    keyEventMap['C-xC-x'] = 'swapMarkAndCursor';
+    keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = 'moveToPreMark';
+    keyEventMap['C-w'] = 'cutRegion';
+    keyEventMap['A-w'] = keyEventMap['M-w'] = 'copyRegion';
+    keyEventMap['C-y'] = 'yankRegion';
+    keyEventMap['A-y'] = keyEventMap['M-y'] = 'yankPrevRegion';
+  }
 
-    function prepareCombinationSequences(){
-      setKeepSequenceHandler('C-u');
-      setKeepSequenceHandler('C-x');
-      setKeepSequenceHandler('C-c');
-      commands.reset = reset;
-      keyEventMap['C-xk'] = 'reset';
+  function prepareBasicKeyInputHandler(){
+    for(var code=32;code <= 126; code++){
+      var char = String.fromCharCode(code);
+      // console.log(char);
+      var handler = generateKeyInputHandler(char);
+      var commandName = 'insertChar(' + char + ')';
+      commands[commandName] = handler;
+      keyEventMap[char] = commandName;
+      keyEventMap['S-' + char] = commandName;
     }
+    var insertLineDelimiter = generateKeyInputHandler(lineDelimiter || '\n');
+    commands.insertLineDelimiter = insertLineDelimiter;
+    keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
+    commands.backspace = backspace;
+    keyEventMap['C-h'] = keyEventMap['Backspace'] = 'backspace';
+    commands.deleteChar = deleteChar;
+    keyEventMap['C-d'] = keyEventMap['Del'] = 'deleteChar';
+  }
 
-    function setKeepSequenceHandler(sequence){
-      var commandName =  'keepSequence(' + sequence + ')';
-      keyEventMap[sequence] = commandName;
-      commands[commandName] = function(opt){
-        if(past_input != null){
-          past_input += sequence;
-        } else {
-          past_input = sequence;
-        }
-        $mb.text(past_input);
-        // console.log(past_input);
-        return {keepPastInput : true};
-      };
-    }
-
-    function generateKeyInputHandler(char){
-      return function(opt){
-        // console.log('#' + char + '#');
-        var buffer = opt.buffer;
-        buffer.insertChar(char);
-      };
-    }
+  function prepareCombinationSequences(){
+    setKeepSequenceHandler('C-u');
+    setKeepSequenceHandler('C-x');
+    setKeepSequenceHandler('C-c');
+    commands.reset = reset;
+    keyEventMap['C-xk'] = 'reset';
+  }
 
   function setKeepSequenceHandler(sequence){
     var commandName =  'keepSequence(' + sequence + ')';
@@ -390,18 +374,23 @@ function generate_uuid(){
   }
 }
 
+Buffer.prototype.clear = function(){
+  var $e = this.$buffer;
+  $('div.line:eq(0)', $e).nextAll().remove().andSelf().children('span.char').remove();
+  console.log('clear');
+};
+
+Buffer.prototype.initHtml = function(uuid){
+  return '<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>';
+};
+
 Buffer.prototype.reset = function(){
   var uuid = this.uuid;
   var $e = this.$buffer;
-  $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>');
+  $e.html(this.initHtml(uuid));
   this.uuid = uuid;
   var $c = $('#cursor_' + uuid);
   this.$c = $c;
-  var opa = 1;
-  function cursor_anime(){
-    $c.animate({opacity: (opa = 1 - opa)}, 400, cursor_anime);
-  }
-  cursor_anime();
   this.$BOF = $('#BOF_' + uuid);
   this.$EOF = $('#EOF_' + uuid);
   this.cursorX = -1;
@@ -439,7 +428,9 @@ Buffer.prototype.markSet = function(){
     $c.before($mark);
     this.$latestMark = $mark;
     var $pop = this.markRing.push($mark);
-    $pop.remove();
+    if($pop){
+      $pop.remove();
+    }
   }
 };
 
@@ -679,8 +670,38 @@ Buffer.prototype.init = function(selector, killRing){
   this.$buffer = $(selector);
   this.uuid = generate_uuid();
   this.killRing = killRing;
+  this.active = false;
   this.reset();
+  if(Buffer.buffers == null){
+    Buffer.buffers = [];
+  }
+  Buffer.buffers.push(this);
 };
+
+Buffer.prototype.setActive = function(active){
+  this.active = active;
+  if(active){
+    var curBuf = this;
+    Buffer.buffers.forEach(function(buffer){
+      if(buffer != curBuf){
+        buffer.setActive(false);
+      }
+    });
+  }
+  var buffer = this;
+  var $c = this.$c;
+  var opa = 1;
+  function cursor_anime(){
+    if(buffer.active){
+      $c.css('visibility', 'visible');
+      $c.animate({opacity: (opa = 1 - opa)}, 400, cursor_anime);
+    } else {
+      $c.css('visibility', 'hidden');
+    }
+  }
+  cursor_anime();
+};
+
 
 Buffer.prototype.insertLineDelimiterCore = function(){
   var pos = this.getCursorPosition();
@@ -720,6 +741,11 @@ Buffer.prototype.count = function($c){
     }
   }
   return $('span.char', this.$buffer).index($prevChar)+1;
+};
+
+Buffer.prototype.insertText = function(text){
+  var self = this;
+  text.split('').forEach(function(c){self.insertChar(c);});
 };
 
 Buffer.prototype.insertCharCore = function(c){
@@ -1164,4 +1190,15 @@ LinkedList.prototype.cur = function(){
     return null;
   }
   return element.value;
+};
+
+
+function Search(){
+  this.init.apply(this, arguments);
+}
+
+Search.prototype.init = function(){
+  this.keyEventMap = {};
+  this.commands = {};
+  
 };
