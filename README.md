@@ -46,6 +46,9 @@ TODO list:
 　　     - [ ] 置換機能
          - [ ] transient-mark modeのon/off
          - [ ] その他コマンドも
+         - [ ] プラグインの仕組みを整理する -> プログラムのモジュール化
+               Gmacs, Buffer, Mode, Keybind, Command, Frame の関係性を整理、
+　　　　　　　 起動処理、プラグインロード処理をキレイにする
       - [ ] ステータス表示はフレームごとにある
          - [ ] フレームは必ず一つのbufferを持つ
          - [ ] bufferは複数のフレームを持ちうる
