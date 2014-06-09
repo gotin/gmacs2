@@ -3,6 +3,7 @@ var input = $input.get(0);
 var $d = $(document);
 var $status = $('#status');
 var $mb = $('#mini-buffer');
+var mb = null;
 var $body = $('html,body');
 $(function(){
   $input.val('');
@@ -531,7 +532,7 @@ Buffer.prototype.yankPrevRegion = function(){
   var $mark = this.$BOY;
   // console.log($mark);
   if($mark == null){
-    $mb.text('Previous command was not a yank.');
+    mb && mb.insertText('Previous command was not a yank.');
     return;
   }
   this.killRing.next();
