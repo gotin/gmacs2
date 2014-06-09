@@ -13,7 +13,10 @@ $(function(){
   setInterval(function(){$('#input:focus').length == 0 && input.focus();}, 100);
   var keyEventMap = {};
   var commands = {};
-  var modes = {default: {keyEventMap: keyEventMap, commands: commands}};
+  var modes = {
+  default: {keyEventMap: keyEventMap, commands: commands, name: 'default'},
+    search: new Search()
+  };
   var current_mode = modes.default;
   var killRing = new Ring(16);
   Gmacs.modes = modes;
@@ -21,12 +24,37 @@ $(function(){
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
 
+  mb = new Buffer('#mini-buffer', killRing);
+  mb.initHtml = function(uuid){
+    return '<div id="prompt"></div><div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>';
+    
+  };
+  mb.reset();
+  mb.$prompt = $('#prompt');
+  buffers['mini-buffer'] = mb;
+  buffer.setActive(true);
 
   Gmacs.past_input = null;
   var keyDown = null;
   var keyDownHit = false;
 
-  prepareKeyEventMap();
+  prepareKeyEventMap(modes, commands, keyEventMap, buffer.lineDelimiter);
+
+  function changeMode(mode_name){
+    var mode = modes[mode_name];
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
+    buffer.mode_name = mode_name;
+    buffer.mode_stack.push(mode);
+  }
+
+  function popMode(){
+    buffer.mode_stack.pop();
+    var mode = buffer.mode_stack[modes.length-1];
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
+    buffer.mode_name = mode.name;
+  }
 
   function invokeHandler(input){
     if(Gmacs.past_input != null){
@@ -244,103 +272,112 @@ $(function(){
     };
   }
 
-    function markSet(opt){
+  function generateKeyInputHandler(char){
+    return function(opt){
+      // console.log('#' + char + '#');
       var buffer = opt.buffer;
-      buffer.markSet();
-    }
-
-    function swapMarkAndCursor(opt){
-      var buffer = opt.buffer;
-      buffer.swapMarkAndCursor();
-    }
-
-    function cutRegion(opt){
-      var buffer = opt.buffer;
-      buffer.cutRegion();
-    }
-
-    function copyRegion(opt){
-      var buffer = opt.buffer;
-      buffer.copyRegion();
-    }
-
-    function yankRegion(opt){
-      var buffer = opt.buffer;
-      buffer.yankRegion();
-    }
-
-    function yankPrevRegion(opt){
-      var buffer = opt.buffer;
-      buffer.yankPrevRegion();
+      buffer.insertChar(char);
     };
-
-    function moveToPreMark(opt){
-      var buffer = opt.buffer;
-      buffer.moveToPreMark();
-    }
-
-    function backspace(opt){
-      var buffer = opt.buffer;
-      buffer.backspace();
-    }
-
-    function deleteChar(opt){
-      var buffer = opt.buffer;
-      buffer.delete();
-    }
-
-    function undo(opt){
-      var buffer = opt.buffer;
-      buffer.undo();
-    }
-
-    function redo(opt){
-      var buffer = opt.buffer;
-      buffer.redo();
-    }
-
-    function prepareCursorOperationHandler(){
-      keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
-      commands.moveBack = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorHorizontally(-1);
-      };
-      keyEventMap['C-f'] = keyEventMap['Right'] = 'moveForward';
-      commands.moveForward = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorHorizontally(+1);
-      };
-      keyEventMap['C-p'] = keyEventMap['Up'] = 'movePreviousLine';
-      commands.movePreviousLine = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorVertically(-1);
-      };
-      keyEventMap['C-n'] = keyEventMap['Down'] = 'moveNextLine';
-      commands.moveNextLine = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorVertically(+1);
-      };
-      keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
-      commands.moveBOL = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorToBOL();
-      };
-      keyEventMap['C-e'] = keyEventMap['End'] = 'moveEOL';
-      commands.moveEOL = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorToEOL();
-      };
-      
-    }
-    
   }
 
+  function reset(opt){
+    var buffer = opt.buffer;
+    buffer.reset();
+  }
 
+  function markSet(opt){
+    var buffer = opt.buffer;
+    buffer.markSet();
+  }
+
+  function swapMarkAndCursor(opt){
+    var buffer = opt.buffer;
+    buffer.swapMarkAndCursor();
+  }
+
+  function cutRegion(opt){
+    var buffer = opt.buffer;
+        buffer.cutRegion();
+  }
+
+  function copyRegion(opt){
+    var buffer = opt.buffer;
+    buffer.copyRegion();
+  }
+
+  function yankRegion(opt){
+    var buffer = opt.buffer;
+    buffer.yankRegion();
+  }
+
+  function yankPrevRegion(opt){
+    var buffer = opt.buffer;
+    buffer.yankPrevRegion();
+  };
+
+  function moveToPreMark(opt){
+    var buffer = opt.buffer;
+    buffer.moveToPreMark();
+  }
+
+  function backspace(opt){
+    var buffer = opt.buffer;
+        buffer.backspace();
+  }
+
+  function deleteChar(opt){
+    var buffer = opt.buffer;
+    buffer.delete();
+  }
+
+  function undo(opt){
+    var buffer = opt.buffer;
+    buffer.undo();
+  }
+
+  function redo(opt){
+    var buffer = opt.buffer;
+    buffer.redo();
+  }
+
+  function prepareCursorOperationHandler(){
+    keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
+    commands.moveBack = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorHorizontally(-1);
+    };
+    keyEventMap['C-f'] = keyEventMap['Right'] = 'moveForward';
+    commands.moveForward = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorHorizontally(+1);
+    };
+    keyEventMap['C-p'] = keyEventMap['Up'] = 'movePreviousLine';
+    commands.movePreviousLine = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVertically(-1);
+    };
+    keyEventMap['C-n'] = keyEventMap['Down'] = 'moveNextLine';
+    commands.moveNextLine = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVertically(+1);
+    };
+    keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
+    commands.moveBOL = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToBOL();
+    };
+    keyEventMap['C-e'] = keyEventMap['End'] = 'moveEOL';
+    commands.moveEOL = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToEOL();
+    };
+  }
+}
 
 function Gmacs(){
 }
 
-});
+Gmacs.modes = {};
 
 function Buffer(selector){
   this.init.apply(this, arguments);
@@ -373,15 +410,17 @@ Buffer.prototype.reset = function(){
   this.eventHandlers = {};
   var self = this;
 
-  this.addEventListner('cursor_moved', function(event){
-    self.scrollToCursor(event.row || 0);
-  });
+      this.addEventListner('cursor_moved', function(event){
+        self.scrollToCursor(event.row || 0);
+      });
   this.fireEvent('cursor_moved', {row:-1});
   this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
   this.visibleMarkMode = true;
   this.commandHistory = new LinkedList(16);
   this.commandHistory.push({o:null,c:null,p:null});
+  this.mode_name = 'default';
+  this.mode_stack = [Gmacs.modes[this.mode_name]];
 };
 
 Buffer.prototype.markSet = function(){
