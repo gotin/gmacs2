@@ -15,21 +15,22 @@ $(function(){
   var modes = {default: {keyEventMap: keyEventMap, commands: commands}};
   var current_mode = modes.default;
   var killRing = new Ring(16);
+  Gmacs.modes = modes;
   var buffers = {'*scratch*' : new Buffer('#buffer', killRing)};
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
 
 
-  var past_input = null;
+  Gmacs.past_input = null;
   var keyDown = null;
   var keyDownHit = false;
 
   prepareKeyEventMap();
 
   function invokeHandler(input){
-    if(past_input != null){
-      past_input = input = past_input + input;
-      $mb.text(past_input);
+    if(Gmacs.past_input != null){
+      Gmacs.past_input = input = Gmacs.past_input + input;
+      mb.insertText(Gmacs.past_input);
     }
     var command = keyEventMap[input];
     var func = commands[command];
@@ -42,12 +43,12 @@ $(function(){
       var pos = buffer.getCursorPosition();
       $status.text('(' + pos.row+','+pos.column+')');
       if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
-        past_input = null;
-        $mb.text('');
+        Gmacs.past_input = null;
+        mb.clear();
       }
     } else {
-      $mb.text('');
-      past_input = null;
+      mb.clear();
+      Gmacs.past_input = null;
     }
   }
 
@@ -120,16 +121,15 @@ $(function(){
     // console.log('keydown: ' + keyDown);
 
     if(input){
+      // console.log(input);
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      if(past_input){
-        input = past_input + input;
+      if(Gmacs.past_input){
+        input = Gmacs.past_input + input;
       }
       var command = keyEventMap[input];
       var func = commands[command];
-      // console.log(input);
-      // console.log(command);
       if(func){
         // buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
@@ -137,11 +137,11 @@ $(function(){
         var pos = buffer.getCursorPosition();
         $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
-          past_input = null;
-          $mb.text('');
+          Gmacs.past_input = null;
+          mb.clear();
         }
       } else {
-        $mb.text('');
+        mb.clear();
         keyDownHit = !!keyDown;
       }
     }
@@ -228,10 +228,20 @@ $(function(){
       };
     }
 
-    function reset(opt){
-      var buffer = opt.buffer;
-      buffer.reset();
-    }
+  function setKeepSequenceHandler(sequence){
+    var commandName =  'keepSequence(' + sequence + ')';
+    keyEventMap[sequence] = commandName;
+    commands[commandName] = function(opt){
+      if(Gmacs.past_input != null){
+        Gmacs.past_input += sequence;
+      } else {
+        Gmacs.past_input = sequence;
+      }
+      mb.insertText(Gmacs.past_input);
+      // console.log(Gmacs.past_input);
+      return {keepPastInput : true};
+    };
+  }
 
     function markSet(opt){
       var buffer = opt.buffer;
@@ -326,6 +336,8 @@ $(function(){
 
 
 
+function Gmacs(){
+}
 
 });
 
