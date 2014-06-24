@@ -6,7 +6,7 @@ body {
 		position: absolute;
 		top: 10px;
 		left:10px;
-		z-index: 1;
+		z-index: 100;
 		font-family: Consolas, monospace;
 		font-size: 10pt;
 		border: 0;
@@ -81,7 +81,9 @@ html {
 .EOF{
 		height: 100px;
 }
-
+#mini-buffer .EOF{
+		height: 0;
+}
 /*.mark.visible{ */
 .mark{
 		width: 0;
@@ -92,4 +94,11 @@ html {
 }
 .mark.visible.latest{
 		border-left: 2px dotted red;
+}
+
+span.char.found {
+		background-color: #339933;
+}
+span.char.found.look {
+		background-color: #333399;
 }

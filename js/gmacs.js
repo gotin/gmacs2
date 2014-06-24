@@ -9,30 +9,51 @@ $(function(){
   $input.val('');
   var ime = false;
   input.focus();
-  $input.blur(function(){input.focus();}).focusout(function(){input.focus();});
-  setInterval(function(){$('#input:focus').length == 0 && input.focus();}, 100);
+  $input.blur(function(){
+    input.focus();
+    input.select();
+  }).focusout(function(){
+    input.focus();
+    input.select();
+  });
+  setInterval(function(){
+    input.focus();
+    if(!ime)
+      input.select();
+  }, 100);
   var keyEventMap = {};
   var commands = {};
-  var modes = {
-  default: {keyEventMap: keyEventMap, commands: commands, name: 'default'},
-    search: new Search()
-  };
+  var modes = {};
+  modes.default = {keyEventMap: keyEventMap,
+                  commands: commands,
+                  name: 'default'};
   var current_mode = modes.default;
   var killRing = new Ring(16);
   Gmacs.modes = modes;
   var buffers = {'*scratch*' : new Buffer('#buffer', killRing)};
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
+  Gmacs.buffers = buffers;
+  Gmacs.buffer = buffer;
+  Gmacs.buffer_name = current_buffer_title;
 
-  mb = new Buffer('#mini-buffer', killRing);
-  mb.initHtml = function(uuid){
-    return '<div id="prompt"></div><div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>';
-    
+  Gmacs.selectBuffer = function(buffer_name){
+    if(Gmacs.preBufferNames == null){
+      Gmacs.preBufferNames = [];
+    };
+    Gmacs.preBufferNames.push(Gmacs.buffer_name);
+    Gmacs.buffer_name = buffer_name;
+    Gmacs.buffer = buffer = buffers[buffer_name];
+    buffer.setActive(true);
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
   };
-  mb.reset();
-  mb.$prompt = $('#prompt');
-  buffers['mini-buffer'] = mb;
+  // buffer.mode_stack.push(modes.default);
   buffer.setActive(true);
+
+
 
   Gmacs.past_input = null;
   var keyDown = null;
@@ -40,49 +61,131 @@ $(function(){
 
   prepareKeyEventMap(modes, commands, keyEventMap, buffer.lineDelimiter);
 
-  function changeMode(mode_name){
+
+  // mini-buffer creation
+
+  var mbKeyEventMap = {};
+  var mbCommands = {};
+  prepareKeyEventMap(modes, mbCommands, mbKeyEventMap, buffer.lineDelimiter);
+  modes['mini-buffer-default'] = {keyEventMap: mbKeyEventMap,
+                  commands: mbCommands,
+                  name: 'mini-buffer-default'};
+  mb = new Buffer('#mini-buffer', killRing, 'mini-buffer-default');
+  mb.initHtml = function(uuid){
+    return '<div id="BOF_'+uuid+'" class="BOF"></div><span id="prompt"></span><span class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></span><div id="EOF_'+uuid+'" class="EOF"></div>';
+    
+  };
+  mb.reset();
+  mb.$prompt = $('#prompt');
+  buffers['mini-buffer'] = mb;
+
+  Gmacs.prompt = mb.prompt = function(args, promise){
+    mb.givenArgs = args;
+    mb.args = {};
+    mb.promise = promise;
+    mb.$prompt.text('');
+    mb.promptNext();
+    Gmacs.selectBuffer('mini-buffer');
+  };
+
+  mb.promptNext = function(preName, preValue){
+    var arg = mb.curArg = mb.givenArgs.shift();
+    if(arg){
+      var txt = [mb.$prompt.text()];
+      if(preName){
+        txt.push(preName);
+        txt.push(':');
+        txt.push(preValue);
+      }
+      txt.push(arg.name+': ');
+      mb.$prompt.text(txt.join(' '));
+      if(arg.default){
+        arg.default.split('').forEach(function(c){mb.insertChar(c);});
+      }
+    } else {
+      mb.promise.success(mb.args);
+      Gmacs.selectBuffer(Gmacs.preBufferNames.pop());
+    }
+  };
+
+  // mb.mode_stack[0].keyEventMap = mbKeyEventMap;
+  // mb.mode_stack[0].commands = mbCommands;
+
+  mbCommands.insertLineDelimiter = function(opt){
+    console.log('hoge');
+    var $chars = $('.char', mb.$buffer); 
+    var value = $chars.text();
+    mb.args[mb.curArg.name] = value;
+    $chars.remove();
+    mb.promptNext(mb.curArg.name, value);
+  };
+
+
+  Gmacs.changeMode = function(mode_name){
     var mode = modes[mode_name];
+    var buffer = Gmacs.buffer;
     keyEventMap = mode.keyEventMap;
     commands = mode.commands;
     buffer.mode_name = mode_name;
     buffer.mode_stack.push(mode);
-  }
+  };
 
-  function popMode(){
-    buffer.mode_stack.pop();
-    var mode = buffer.mode_stack[modes.length-1];
+  Gmacs.popMode = function(){
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    mode_stack.pop();
+    var mode = mode_stack[mode_stack.length-1];
     keyEventMap = mode.keyEventMap;
     commands = mode.commands;
     buffer.mode_name = mode.name;
-  }
+  };
 
   function invokeHandler(input){
     if(Gmacs.past_input != null){
       Gmacs.past_input = input = Gmacs.past_input + input;
       mb.insertText(Gmacs.past_input);
     }
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    var keyEventMap = mode.keyEventMap;
+    var commands = mode.commands;
+
     var command = keyEventMap[input];
+    
+    // console.log('invokeHandler');
+    // console.log(command);
     var func = commands[command];
+    if(func == null){
+      func = commands[keyEventMap['<default>']];
+    }
+
     if(func){
       // buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
       buffer.fireEvent('command_executed', {buffer:buffer, command:command});
       var pos = buffer.getCursorPosition();
       $status.text('(' + pos.row+','+pos.column+')');
-      if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
+      if(typeof status != 'object' || !('keepPastInput' in status)
+         || !status.keepPastInput){
         Gmacs.past_input = null;
-        mb.clear();
+        // mb.clear();
       }
     } else {
-      mb.clear();
+      // mb.clear();
       Gmacs.past_input = null;
     }
   }
 
-  $d.bind('compositionstart', function(e){
+  // $d.bind('compositionstart', function(e){
+  $input.bind('compositionstart', function(e){
+    // console.log('ime');
+    // console.log(e);
+    var buffer = Gmacs.buffer;
     ime = true;
     $input.css(buffer.$c.position());
     $input.css('z-index', '100');
+    
   }).bind('compositionend', function(e){
     
     var timer = setInterval(function(){
@@ -90,15 +193,19 @@ $(function(){
         $input.val().split('').forEach(function(c){buffer.insertChar(c);});
         $input.val('');
         clearInterval(timer);
-        $input.css('z-index', '1');
+        $input.css({left:'-100px',top:'-100px'});
+        // $input.css('z-index', '1');
         var pos = buffer.getCursorPosition();
         $status.text('(' + pos.row+','+pos.column+')');
       }
     },10);
     ime = false;
   });;
+  
+  $input.css({left:'-100px',top:'-100px'});
 
-  $d.keypress(function(e){
+  // $d.keypress(function(e){
+  $input.keypress(function(e){
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     if(!keyDownHit || mod){
       var char = String.fromCharCode(e.charCode);
@@ -109,7 +216,7 @@ $(function(){
       } else {
         input = mod ? mod + '-' + char : char;
       }
-      if(input){
+      if(!ime && input){
         // console.log(input);
         // console.log('charCode: ' + e.charCode);
         // console.log('keyCode: ' + e.keyCode);
@@ -118,6 +225,7 @@ $(function(){
         // console.log('key: ' + e.key);
         // console.log('input: ' + input);
         // console.log('---');
+
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -126,13 +234,21 @@ $(function(){
     }
     keyDownHit = false;
   }).keydown(function(e){
+    // console.log(e);
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    var keyEventMap = mode.keyEventMap;
+    var commands = mode.commands;
+    
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     keyDown = e.keyCode;
-    // console.log(keyDown);
     var input = null;
     if(mod.match(/(A|M|C){1,3}/)){
       var c = String.fromCharCode(keyDown);
-      if(keyDown == 191){
+      if(32 <= keyDown && keyDown <= 126){
+        // nothing to do
+      } else if(keyDown == 191){
         c = '/';
       } else if(keyDown == 173){
         c = '-';
@@ -146,6 +262,8 @@ $(function(){
         c = '/';
       } else if(keyDown == 219){ // safari 
         c = '@';
+      } else {
+        c = '';
       }
       input = mod + '-' + c.toLowerCase();
       // console.log(input);
@@ -153,10 +271,10 @@ $(function(){
     } else {
       input = vkCodeMap[keyDown];
     }
-    // console.log('keydown: ' + keyDown);
 
-    if(input){
+    if(!ime && input){
       // console.log(input);
+      
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -165,6 +283,17 @@ $(function(){
       }
       var command = keyEventMap[input];
       var func = commands[command];
+      // for(var a in keyEventMap){
+      // console.log(a);
+      //}
+
+      //for(var a in commands){
+      //console.log(a);
+      //}
+
+      if(func == null && c != ''){
+        func = commands[keyEventMap['<default>']];
+      }
       if(func){
         // buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
@@ -173,10 +302,10 @@ $(function(){
         $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
           Gmacs.past_input = null;
-          mb.clear();
+          // mb.clear();
         }
       } else {
-        mb.clear();
+        // mb.clear();
         keyDownHit = !!keyDown;
       }
     }
@@ -184,6 +313,7 @@ $(function(){
 });
 
 function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
+  
   prepareBasicKeyInputHandler();
   prepareCursorOperationHandler();
   prepareCombinationSequences();
@@ -306,7 +436,7 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
 
   function backspace(opt){
     var buffer = opt.buffer;
-        buffer.backspace();
+    buffer.backspace();
   }
 
   function deleteChar(opt){
@@ -374,10 +504,11 @@ function generate_uuid(){
   }
 }
 
+
 Buffer.prototype.clear = function(){
   var $e = this.$buffer;
-  $('div.line:eq(0)', $e).nextAll().remove().andSelf().children('span.char').remove();
-  console.log('clear');
+  $('.line:eq(0)', $e).nextAll().remove().andSelf().children('span.char').remove();
+  // console.log('clear');
 };
 
 Buffer.prototype.initHtml = function(uuid){
@@ -408,7 +539,7 @@ Buffer.prototype.reset = function(){
   this.visibleMarkMode = true;
   this.commandHistory = new LinkedList(16);
   this.commandHistory.push({o:null,c:null,p:null});
-  this.mode_name = 'default';
+  this.mode_name = this.defaultModeName;
   this.mode_stack = [Gmacs.modes[this.mode_name]];
 };
 
@@ -465,7 +596,7 @@ Buffer.prototype.region = function($mark){
     }
     var $firstLine = $former.nextAll(':not(span.mark)');
     var $marks_in_firstLine = $former.nextAll('span.mark');
-    var $lines = $former.parent('div.line').nextUntil($latter.parent('div.line'), 'div.line');
+    var $lines = $former.parent('.line').nextUntil($latter.parent('.line'), '.line');
     var $marks_in_lines = $('span.mark', $lines);
     var $lastLine = $latter.prevAll(':not(span.mark)');
     var $marks_in_lastLine = $latter.prevAll('span.mark');
@@ -511,9 +642,9 @@ function copy_cut_func_gen(cut_option){
         this.delete();
       }
       // if($former != null && $latter != null){
-      //   var $latterParent = $latter.parent('div.line');
+      //   var $latterParent = $latter.parent('.line');
       //   var $latterNextAll = $latter.nextAll();
-      //   $former.parent('div.line').append($latter).append($latterNextAll);
+      //   $former.parent('.line').append($latter).append($latterNextAll);
       //   $latterParent.remove();
       // }
       if($latter == $c){
@@ -666,11 +797,12 @@ Buffer.prototype.fireEvent = function(event_type, event){
   }
 };
 
-Buffer.prototype.init = function(selector, killRing){
+Buffer.prototype.init = function(selector, killRing, defaultModeName){
   this.$buffer = $(selector);
   this.uuid = generate_uuid();
   this.killRing = killRing;
   this.active = false;
+  this.defaultModeName = defaultModeName || 'default';
   this.reset();
   if(Buffer.buffers == null){
     Buffer.buffers = [];
@@ -678,9 +810,11 @@ Buffer.prototype.init = function(selector, killRing){
   Buffer.buffers.push(this);
 };
 
+
 Buffer.prototype.setActive = function(active){
   this.active = active;
   if(active){
+    Gmacs.buffer = this;
     var curBuf = this;
     Buffer.buffers.forEach(function(buffer){
       if(buffer != curBuf){
@@ -707,9 +841,9 @@ Buffer.prototype.insertLineDelimiterCore = function(){
   var pos = this.getCursorPosition();
   var $c = this.$c;
   var next = $c.before('<span class="char line_delimiter"><br />\n</span>')
-    .parent('div.line').removeClass('current')
+    .parent('.line').removeClass('current')
     .after('<div class="line current"></div>')
-    .next('div.line')
+    .next('.line')
     //.append($('span.cursor, span.cursor ~ span.char, span.cursor ~ span.mark'));
     .append($($.makeArray($c).concat($.makeArray($c.nextAll('span.char, span.mark')))));
   
@@ -732,7 +866,7 @@ Buffer.prototype.count = function($c){
   }
   var $prevChar = $c.prevAll('span.char').first();
   if($prevChar.length == 0){
-    var $preLine = $c.parent('div.line').prev('div.line');
+    var $preLine = $c.parent('.line').prev('.line');
     if($preLine.length > 0){
       $prevChar = $preLine.children('span.char').last();
     } else {
@@ -786,8 +920,8 @@ Buffer.prototype.backspace = function(){
   var $prev = $c.prevAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($prev.length == 0){
-    var $line = $c.parent('div.line');
-    var $preLine = $line.prev('div.line');
+    var $line = $c.parent('.line');
+    var $preLine = $line.prev('.line');
     if($preLine.length > 0){
       c = '\n';
       $('span.char.line_delimiter', $preLine).remove();
@@ -813,8 +947,8 @@ Buffer.prototype.deleteCore = function(){
   var $next = $c.nextAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($next.length == 0){
-    var $line = $c.parent('div.line');
-    var $nextLine = $line.next('div.line');
+    var $line = $c.parent('.line');
+    var $nextLine = $line.next('.line');
     if($nextLine.length > 0){
       c = '\n';
       $('span.char.line_delimiter', $line).remove();
@@ -841,7 +975,7 @@ Buffer.prototype.moveCursorToBOL = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   $('span.char.normal', $line).first().before($c);
   while($c.next().hasClass('mark')){
     $c.next().after($c);
@@ -853,7 +987,7 @@ Buffer.prototype.moveCursorToEOL = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   $('span.char.normal', $line).last().after($c);
   while($c.next().hasClass('mark')){
     $c.next().after($c);
@@ -868,7 +1002,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   //var up_or_down = 0;
   if(n<0){
     var $prev = $c.prevAll('span.char').first();
@@ -876,7 +1010,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       $prev.before($c);
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:-1});
     } else {
-      var $preLine = $line.prev('div.line');
+      var $preLine = $line.prev('.line');
       if($preLine.length > 0){
         var $chars = $('span.char.normal', $preLine);
         if($chars.length > 0){
@@ -902,7 +1036,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       }
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     } else {
-      var $nextLine = $line.next('div.line');
+      var $nextLine = $line.next('.line');
       if($nextLine.length > 0){
         $nextLine.prepend($c);
         while($c.next().hasClass('mark')){
@@ -927,7 +1061,7 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
   if(up_or_down != -1 && up_or_down != 1){
     return;
   }
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   var line_height = $line.height() + h('margin-top') + h('border-top') + h('padding-top')
     + h('margin-bottom') + h('border-bottom') + h('padding-bottom');
   
@@ -952,16 +1086,16 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
 Buffer.prototype.moveCursorVertically = function(n){
   if(!this.enabled) return;
   var $c = this.$c;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   if(this.cursorX < 0){
     this.cursorX = $c.prevAll('span.char.normal').length;
   }
   // console.log(cursorX);
   var $targetLine = null;
   if(n<0){
-    $targetLine = $line.prev('div.line');
+    $targetLine = $line.prev('.line');
   } else {
-    $targetLine = $line.next('div.line');
+    $targetLine = $line.next('.line');
   }
   if($targetLine.length > 0){
     var $targetLineChars = $('span.char.normal', $targetLine);
@@ -989,7 +1123,7 @@ Buffer.prototype.lineDelimiter = '\n';
 Buffer.prototype.getCursorPosition = function($target){
   var $c = $target == null ? this.$c : $target;
   var column = $c.prevAll('span.char.normal').length;
-  var row = $c.parent('div.line').prevAll('div.line').length + 1;
+  var row = $c.parent('.line').prevAll('.line').length + 1;
   return {row: row, column: column};
 };
 
@@ -1193,12 +1327,3 @@ LinkedList.prototype.cur = function(){
 };
 
 
-function Search(){
-  this.init.apply(this, arguments);
-}
-
-Search.prototype.init = function(){
-  this.keyEventMap = {};
-  this.commands = {};
-  
-};
