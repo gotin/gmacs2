@@ -3,58 +3,189 @@ var input = $input.get(0);
 var $d = $(document);
 var $status = $('#status');
 var $mb = $('#mini-buffer');
+var mb = null;
 var $body = $('html,body');
 $(function(){
   $input.val('');
   var ime = false;
   input.focus();
-  $input.blur(function(){input.focus();}).focusout(function(){input.focus();});
-  setInterval(function(){$('#input:focus').length == 0 && input.focus();}, 100);
+  $input.blur(function(){
+    input.focus();
+    input.select();
+  }).focusout(function(){
+    input.focus();
+    input.select();
+  });
+  setInterval(function(){
+    input.focus();
+    if(!ime)
+      input.select();
+  }, 100);
   var keyEventMap = {};
   var commands = {};
-  var modes = {default: {keyEventMap: keyEventMap, commands: commands}};
+  var modes = {};
+  modes.default = {keyEventMap: keyEventMap,
+                  commands: commands,
+                  name: 'default'};
   var current_mode = modes.default;
   var killRing = new Ring(16);
+  Gmacs.modes = modes;
   var buffers = {'*scratch*' : new Buffer('#buffer', killRing)};
   var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
+  Gmacs.buffers = buffers;
+  Gmacs.buffer = buffer;
+  Gmacs.buffer_name = current_buffer_title;
+
+  Gmacs.selectBuffer = function(buffer_name){
+    if(Gmacs.preBufferNames == null){
+      Gmacs.preBufferNames = [];
+    };
+    Gmacs.preBufferNames.push(Gmacs.buffer_name);
+    Gmacs.buffer_name = buffer_name;
+    Gmacs.buffer = buffer = buffers[buffer_name];
+    buffer.setActive(true);
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
+  };
+  // buffer.mode_stack.push(modes.default);
+  buffer.setActive(true);
 
 
-  var past_input = null;
+
+  Gmacs.past_input = null;
   var keyDown = null;
   var keyDownHit = false;
 
-  prepareKeyEventMap();
+  prepareKeyEventMap(modes, commands, keyEventMap, buffer.lineDelimiter);
+
+
+  // mini-buffer creation
+
+  var mbKeyEventMap = {};
+  var mbCommands = {};
+  prepareKeyEventMap(modes, mbCommands, mbKeyEventMap, buffer.lineDelimiter);
+  modes['mini-buffer-default'] = {keyEventMap: mbKeyEventMap,
+                  commands: mbCommands,
+                  name: 'mini-buffer-default'};
+  mb = new Buffer('#mini-buffer', killRing, 'mini-buffer-default');
+  mb.initHtml = function(uuid){
+    return '<div id="BOF_'+uuid+'" class="BOF"></div><span id="prompt"></span><span class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></span><div id="EOF_'+uuid+'" class="EOF"></div>';
+    
+  };
+  mb.reset();
+  mb.$prompt = $('#prompt');
+  buffers['mini-buffer'] = mb;
+
+  Gmacs.prompt = mb.prompt = function(args, promise){
+    mb.givenArgs = args;
+    mb.args = {};
+    mb.promise = promise;
+    mb.$prompt.text('');
+    mb.promptNext();
+    Gmacs.selectBuffer('mini-buffer');
+  };
+
+  mb.promptNext = function(preName, preValue){
+    var arg = mb.curArg = mb.givenArgs.shift();
+    if(arg){
+      var txt = [mb.$prompt.text()];
+      if(preName){
+        txt.push(preName);
+        txt.push(':');
+        txt.push(preValue);
+      }
+      txt.push(arg.name+': ');
+      mb.$prompt.text(txt.join(' '));
+      if(arg.default){
+        arg.default.split('').forEach(function(c){mb.insertChar(c);});
+      }
+    } else {
+      mb.promise.success(mb.args);
+      Gmacs.selectBuffer(Gmacs.preBufferNames.pop());
+    }
+  };
+
+  // mb.mode_stack[0].keyEventMap = mbKeyEventMap;
+  // mb.mode_stack[0].commands = mbCommands;
+
+  mbCommands.insertLineDelimiter = function(opt){
+    console.log('hoge');
+    var $chars = $('.char', mb.$buffer); 
+    var value = $chars.text();
+    mb.args[mb.curArg.name] = value;
+    $chars.remove();
+    mb.promptNext(mb.curArg.name, value);
+  };
+
+
+  Gmacs.changeMode = function(mode_name){
+    var mode = modes[mode_name];
+    var buffer = Gmacs.buffer;
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
+    buffer.mode_name = mode_name;
+    buffer.mode_stack.push(mode);
+  };
+
+  Gmacs.popMode = function(){
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    mode_stack.pop();
+    var mode = mode_stack[mode_stack.length-1];
+    keyEventMap = mode.keyEventMap;
+    commands = mode.commands;
+    buffer.mode_name = mode.name;
+  };
 
   function invokeHandler(input){
-    if(past_input != null){
-      past_input = input = past_input + input;
-      $mb.text(past_input);
+    if(Gmacs.past_input != null){
+      Gmacs.past_input = input = Gmacs.past_input + input;
+      mb.insertText(Gmacs.past_input);
     }
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    var keyEventMap = mode.keyEventMap;
+    var commands = mode.commands;
+
     var command = keyEventMap[input];
-    var func = commands[command];
-    // console.log(input);
+    
+    // console.log('invokeHandler');
     // console.log(command);
+    var func = commands[command];
+    if(func == null){
+      func = commands[keyEventMap['<default>']];
+    }
+
     if(func){
       // buffer.commandHistory.push(command);
       var status = func({buffer:buffer});
       buffer.fireEvent('command_executed', {buffer:buffer, command:command});
       var pos = buffer.getCursorPosition();
       $status.text('(' + pos.row+','+pos.column+')');
-      if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
-        past_input = null;
-        $mb.text('');
+      if(typeof status != 'object' || !('keepPastInput' in status)
+         || !status.keepPastInput){
+        Gmacs.past_input = null;
+        // mb.clear();
       }
     } else {
-      $mb.text('');
-      past_input = null;
+      // mb.clear();
+      Gmacs.past_input = null;
     }
   }
 
-  $d.bind('compositionstart', function(e){
+  // $d.bind('compositionstart', function(e){
+  $input.bind('compositionstart', function(e){
+    // console.log('ime');
+    // console.log(e);
+    var buffer = Gmacs.buffer;
     ime = true;
     $input.css(buffer.$c.position());
     $input.css('z-index', '100');
+    
   }).bind('compositionend', function(e){
     
     var timer = setInterval(function(){
@@ -62,15 +193,19 @@ $(function(){
         $input.val().split('').forEach(function(c){buffer.insertChar(c);});
         $input.val('');
         clearInterval(timer);
-        $input.css('z-index', '1');
+        $input.css({left:'-100px',top:'-100px'});
+        // $input.css('z-index', '1');
         var pos = buffer.getCursorPosition();
         $status.text('(' + pos.row+','+pos.column+')');
       }
     },10);
     ime = false;
   });;
+  
+  $input.css({left:'-100px',top:'-100px'});
 
-  $d.keypress(function(e){
+  // $d.keypress(function(e){
+  $input.keypress(function(e){
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     if(!keyDownHit || mod){
       var char = String.fromCharCode(e.charCode);
@@ -81,7 +216,8 @@ $(function(){
       } else {
         input = mod ? mod + '-' + char : char;
       }
-      if(input){
+      if(!ime && input){
+        // console.log(input);
         // console.log('charCode: ' + e.charCode);
         // console.log('keyCode: ' + e.keyCode);
         // console.log('converted char: ' + char);
@@ -89,6 +225,7 @@ $(function(){
         // console.log('key: ' + e.key);
         // console.log('input: ' + input);
         // console.log('---');
+
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -97,39 +234,66 @@ $(function(){
     }
     keyDownHit = false;
   }).keydown(function(e){
+    // console.log(e);
+    var buffer = Gmacs.buffer;
+    var mode_stack = buffer.mode_stack;
+    var mode = mode_stack[mode_stack.length-1];
+    var keyEventMap = mode.keyEventMap;
+    var commands = mode.commands;
+    
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
     keyDown = e.keyCode;
-    // console.log(keyDown);
     var input = null;
     if(mod.match(/(A|M|C){1,3}/)){
       var c = String.fromCharCode(keyDown);
-      if(keyDown == 191){
+      if(32 <= keyDown && keyDown <= 126){
+        // nothing to do
+      } else if(keyDown == 191){
         c = '/';
       } else if(keyDown == 173){
         c = '-';
       } else if(keyDown == 188){
         c = ',';
+      } else if(keyDown == 189){ // safari 
+        c = '-';
       } else if(keyDown == 190){
         c = '.';
+      } else if(keyDown == 229){ // safari 
+        c = '/';
+      } else if(keyDown == 219){ // safari 
+        c = '@';
+      } else {
+        c = '';
       }
       input = mod + '-' + c.toLowerCase();
+      // console.log(input);
       keyDown = null;
     } else {
       input = vkCodeMap[keyDown];
     }
-    // console.log('keydown: ' + keyDown);
 
-    if(input){
+    if(!ime && input){
+      // console.log(input);
+      
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      if(past_input){
-        input = past_input + input;
+      if(Gmacs.past_input){
+        input = Gmacs.past_input + input;
       }
       var command = keyEventMap[input];
       var func = commands[command];
-      // console.log(input);
-      // console.log(command);
+      // for(var a in keyEventMap){
+      // console.log(a);
+      //}
+
+      //for(var a in commands){
+      //console.log(a);
+      //}
+
+      if(func == null && c != ''){
+        func = commands[keyEventMap['<default>']];
+      }
       if(func){
         // buffer.commandHistory.push(command);
         var status = func({buffer:buffer});
@@ -137,197 +301,197 @@ $(function(){
         var pos = buffer.getCursorPosition();
         $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
-          past_input = null;
-          $mb.text('');
+          Gmacs.past_input = null;
+          // mb.clear();
         }
       } else {
-        $mb.text('');
+        // mb.clear();
         keyDownHit = !!keyDown;
       }
     }
   });
+});
+
+function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
   
-  function prepareKeyEventMap(){
-    prepareBasicKeyInputHandler();
-    prepareCursorOperationHandler();
-    prepareCombinationSequences();
-    prepareMarkOperations();
-    prepareUndoRedoOperations();
+  prepareBasicKeyInputHandler();
+  prepareCursorOperationHandler();
+  prepareCombinationSequences();
+  prepareMarkOperations();
+  prepareUndoRedoOperations();
 
-    function prepareUndoRedoOperations(){
-      commands.undo = undo;
-      commands.redo = redo;
-      keyEventMap['C-/'] = keyEventMap['C--'] = 'undo';
-      keyEventMap['C-.'] = keyEventMap['C-,'] = 'redo';
-    }
-
-    function prepareMarkOperations(){
-      commands.markSet = markSet;
-      commands.swapMarkAndCursor = swapMarkAndCursor;
-      commands.moveToPreMark = moveToPreMark;
-      commands.cutRegion = cutRegion;
-      commands.copyRegion = copyRegion;
-      commands.yankRegion = yankRegion;
-      commands.yankPrevRegion = yankPrevRegion;
-      keyEventMap['C-@'] = keyEventMap['C- '] = 'markSet';
-      keyEventMap['C-xC-x'] = 'swapMarkAndCursor';
-      keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = 'moveToPreMark';
-      keyEventMap['C-w'] = 'cutRegion';
-      keyEventMap['A-w'] = keyEventMap['M-w'] = 'copyRegion';
-      keyEventMap['C-y'] = 'yankRegion';
-      keyEventMap['A-y'] = keyEventMap['M-y'] = 'yankPrevRegion';
-    }
-
-    function prepareBasicKeyInputHandler(){
-      for(var code=32;code <= 126; code++){
-        var char = String.fromCharCode(code);
-        // console.log(char);
-        var handler = generateKeyInputHandler(char);
-        var commandName = 'insertChar(' + char + ')';
-        commands[commandName] = handler;
-        keyEventMap[char] = commandName;
-        keyEventMap['S-' + char] = commandName;
-      }
-      var insertLineDelimiter = generateKeyInputHandler(buffer.lineDelimiter || '\n');
-      commands.insertLineDelimiter = insertLineDelimiter;
-      keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
-      commands.backspace = backspace;
-      keyEventMap['C-h'] = keyEventMap['Backspace'] = 'backspace';
-      commands.deleteChar = deleteChar;
-      keyEventMap['C-d'] = keyEventMap['Del'] = 'deleteChar';
-    }
-
-    function prepareCombinationSequences(){
-      setKeepSequenceHandler('C-u');
-      setKeepSequenceHandler('C-x');
-      setKeepSequenceHandler('C-c');
-      commands.reset = reset;
-      keyEventMap['C-xk'] = 'reset';
-    }
-
-    function setKeepSequenceHandler(sequence){
-      var commandName =  'keepSequence(' + sequence + ')';
-      keyEventMap[sequence] = commandName;
-      commands[commandName] = function(opt){
-        if(past_input != null){
-          past_input += sequence;
-        } else {
-          past_input = sequence;
-        }
-        $mb.text(past_input);
-        // console.log(past_input);
-        return {keepPastInput : true};
-      };
-    }
-
-    function generateKeyInputHandler(char){
-      return function(opt){
-        // console.log('#' + char + '#');
-        var buffer = opt.buffer;
-        buffer.insertChar(char);
-      };
-    }
-
-    function reset(opt){
-      var buffer = opt.buffer;
-      buffer.reset();
-    }
-
-    function markSet(opt){
-      var buffer = opt.buffer;
-      buffer.markSet();
-    }
-
-    function swapMarkAndCursor(opt){
-      var buffer = opt.buffer;
-      buffer.swapMarkAndCursor();
-    }
-
-    function cutRegion(opt){
-      var buffer = opt.buffer;
-      buffer.cutRegion();
-    }
-
-    function copyRegion(opt){
-      var buffer = opt.buffer;
-      buffer.copyRegion();
-    }
-
-    function yankRegion(opt){
-      var buffer = opt.buffer;
-      buffer.yankRegion();
-    }
-
-    function yankPrevRegion(opt){
-      var buffer = opt.buffer;
-      buffer.yankPrevRegion();
-    };
-
-    function moveToPreMark(opt){
-      var buffer = opt.buffer;
-      buffer.moveToPreMark();
-    }
-
-    function backspace(opt){
-      var buffer = opt.buffer;
-      buffer.backspace();
-    }
-
-    function deleteChar(opt){
-      var buffer = opt.buffer;
-      buffer.delete();
-    }
-
-    function undo(opt){
-      var buffer = opt.buffer;
-      buffer.undo();
-    }
-
-    function redo(opt){
-      var buffer = opt.buffer;
-      buffer.redo();
-    }
-
-    function prepareCursorOperationHandler(){
-      keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
-      commands.moveBack = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorHorizontally(-1);
-      };
-      keyEventMap['C-f'] = keyEventMap['Right'] = 'moveForward';
-      commands.moveForward = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorHorizontally(+1);
-      };
-      keyEventMap['C-p'] = keyEventMap['Up'] = 'movePreviousLine';
-      commands.movePreviousLine = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorVertically(-1);
-      };
-      keyEventMap['C-n'] = keyEventMap['Down'] = 'moveNextLine';
-      commands.moveNextLine = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorVertically(+1);
-      };
-      keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
-      commands.moveBOL = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorToBOL();
-      };
-      keyEventMap['C-e'] = keyEventMap['End'] = 'moveEOL';
-      commands.moveEOL = function(opt){
-        var buffer = opt.buffer;
-        buffer.moveCursorToEOL();
-      };
-      
-    }
-    
+  function prepareUndoRedoOperations(){
+    commands.undo = undo;
+    commands.redo = redo;
+    keyEventMap['C-/'] = keyEventMap['C--'] = 'undo';
+    keyEventMap['C-.'] = keyEventMap['C-,'] = 'redo';
   }
 
+  function prepareMarkOperations(){
+    commands.markSet = markSet;
+    commands.swapMarkAndCursor = swapMarkAndCursor;
+    commands.moveToPreMark = moveToPreMark;
+    commands.cutRegion = cutRegion;
+    commands.copyRegion = copyRegion;
+    commands.yankRegion = yankRegion;
+    commands.yankPrevRegion = yankPrevRegion;
+    keyEventMap['C-@'] = keyEventMap['C- '] = 'markSet';
+    keyEventMap['C-xC-x'] = 'swapMarkAndCursor';
+    keyEventMap['C-uC- '] = keyEventMap['C-uC-@'] = 'moveToPreMark';
+    keyEventMap['C-w'] = 'cutRegion';
+    keyEventMap['A-w'] = keyEventMap['M-w'] = 'copyRegion';
+    keyEventMap['C-y'] = 'yankRegion';
+    keyEventMap['A-y'] = keyEventMap['M-y'] = 'yankPrevRegion';
+  }
 
+  function prepareBasicKeyInputHandler(){
+    for(var code=32;code <= 126; code++){
+      var char = String.fromCharCode(code);
+      // console.log(char);
+      var handler = generateKeyInputHandler(char);
+      var commandName = 'insertChar(' + char + ')';
+      commands[commandName] = handler;
+      keyEventMap[char] = commandName;
+      keyEventMap['S-' + char] = commandName;
+    }
+    var insertLineDelimiter = generateKeyInputHandler(lineDelimiter || '\n');
+    commands.insertLineDelimiter = insertLineDelimiter;
+    keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
+    commands.backspace = backspace;
+    keyEventMap['C-h'] = keyEventMap['Backspace'] = 'backspace';
+    commands.deleteChar = deleteChar;
+    keyEventMap['C-d'] = keyEventMap['Del'] = 'deleteChar';
+  }
 
+  function prepareCombinationSequences(){
+    setKeepSequenceHandler('C-u');
+    setKeepSequenceHandler('C-x');
+    setKeepSequenceHandler('C-c');
+    commands.reset = reset;
+    keyEventMap['C-xk'] = 'reset';
+  }
 
-});
+  function setKeepSequenceHandler(sequence){
+    var commandName =  'keepSequence(' + sequence + ')';
+    keyEventMap[sequence] = commandName;
+    commands[commandName] = function(opt){
+      if(Gmacs.past_input != null){
+        Gmacs.past_input += sequence;
+      } else {
+        Gmacs.past_input = sequence;
+      }
+      mb.insertText(Gmacs.past_input);
+      // console.log(Gmacs.past_input);
+      return {keepPastInput : true};
+    };
+  }
+
+  function generateKeyInputHandler(char){
+    return function(opt){
+      // console.log('#' + char + '#');
+      var buffer = opt.buffer;
+      buffer.insertChar(char);
+    };
+  }
+
+  function reset(opt){
+    var buffer = opt.buffer;
+    buffer.reset();
+  }
+
+  function markSet(opt){
+    var buffer = opt.buffer;
+    buffer.markSet();
+  }
+
+  function swapMarkAndCursor(opt){
+    var buffer = opt.buffer;
+    buffer.swapMarkAndCursor();
+  }
+
+  function cutRegion(opt){
+    var buffer = opt.buffer;
+        buffer.cutRegion();
+  }
+
+  function copyRegion(opt){
+    var buffer = opt.buffer;
+    buffer.copyRegion();
+  }
+
+  function yankRegion(opt){
+    var buffer = opt.buffer;
+    buffer.yankRegion();
+  }
+
+  function yankPrevRegion(opt){
+    var buffer = opt.buffer;
+    buffer.yankPrevRegion();
+  };
+
+  function moveToPreMark(opt){
+    var buffer = opt.buffer;
+    buffer.moveToPreMark();
+  }
+
+  function backspace(opt){
+    var buffer = opt.buffer;
+    buffer.backspace();
+  }
+
+  function deleteChar(opt){
+    var buffer = opt.buffer;
+    buffer.delete();
+  }
+
+  function undo(opt){
+    var buffer = opt.buffer;
+    buffer.undo();
+  }
+
+  function redo(opt){
+    var buffer = opt.buffer;
+    buffer.redo();
+  }
+
+  function prepareCursorOperationHandler(){
+    keyEventMap['C-b'] = keyEventMap['Left'] = 'moveBack';
+    commands.moveBack = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorHorizontally(-1);
+    };
+    keyEventMap['C-f'] = keyEventMap['Right'] = 'moveForward';
+    commands.moveForward = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorHorizontally(+1);
+    };
+    keyEventMap['C-p'] = keyEventMap['Up'] = 'movePreviousLine';
+    commands.movePreviousLine = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVertically(-1);
+    };
+    keyEventMap['C-n'] = keyEventMap['Down'] = 'moveNextLine';
+    commands.moveNextLine = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVertically(+1);
+    };
+    keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
+    commands.moveBOL = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToBOL();
+    };
+    keyEventMap['C-e'] = keyEventMap['End'] = 'moveEOL';
+    commands.moveEOL = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToEOL();
+    };
+  }
+}
+
+function Gmacs(){
+}
+
+Gmacs.modes = {};
 
 function Buffer(selector){
   this.init.apply(this, arguments);
@@ -340,18 +504,24 @@ function generate_uuid(){
   }
 }
 
+
+Buffer.prototype.clear = function(){
+  var $e = this.$buffer;
+  $('.line:eq(0)', $e).nextAll().remove().andSelf().children('span.char').remove();
+  // console.log('clear');
+};
+
+Buffer.prototype.initHtml = function(uuid){
+  return '<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>';
+};
+
 Buffer.prototype.reset = function(){
   var uuid = this.uuid;
   var $e = this.$buffer;
-  $e.html('<div id="BOF_'+uuid+'" class="BOF"></div><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>');
+  $e.html(this.initHtml(uuid));
   this.uuid = uuid;
   var $c = $('#cursor_' + uuid);
   this.$c = $c;
-  var opa = 1;
-  function cursor_anime(){
-    $c.animate({opacity: (opa = 1 - opa)}, 400, cursor_anime);
-  }
-  cursor_anime();
   this.$BOF = $('#BOF_' + uuid);
   this.$EOF = $('#EOF_' + uuid);
   this.cursorX = -1;
@@ -360,15 +530,17 @@ Buffer.prototype.reset = function(){
   this.eventHandlers = {};
   var self = this;
 
-  this.addEventListner('cursor_moved', function(event){
-    self.scrollToCursor(event.row || 0);
-  });
+      this.addEventListner('cursor_moved', function(event){
+        self.scrollToCursor(event.row || 0);
+      });
   this.fireEvent('cursor_moved', {row:-1});
   this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
   this.visibleMarkMode = true;
   this.commandHistory = new LinkedList(16);
   this.commandHistory.push({o:null,c:null,p:null});
+  this.mode_name = this.defaultModeName;
+  this.mode_stack = [Gmacs.modes[this.mode_name]];
 };
 
 Buffer.prototype.markSet = function(){
@@ -387,7 +559,9 @@ Buffer.prototype.markSet = function(){
     $c.before($mark);
     this.$latestMark = $mark;
     var $pop = this.markRing.push($mark);
-    $pop.remove();
+    if($pop){
+      $pop.remove();
+    }
   }
 };
 
@@ -422,7 +596,7 @@ Buffer.prototype.region = function($mark){
     }
     var $firstLine = $former.nextAll(':not(span.mark)');
     var $marks_in_firstLine = $former.nextAll('span.mark');
-    var $lines = $former.parent('div.line').nextUntil($latter.parent('div.line'), 'div.line');
+    var $lines = $former.parent('.line').nextUntil($latter.parent('.line'), '.line');
     var $marks_in_lines = $('span.mark', $lines);
     var $lastLine = $latter.prevAll(':not(span.mark)');
     var $marks_in_lastLine = $latter.prevAll('span.mark');
@@ -468,9 +642,9 @@ function copy_cut_func_gen(cut_option){
         this.delete();
       }
       // if($former != null && $latter != null){
-      //   var $latterParent = $latter.parent('div.line');
+      //   var $latterParent = $latter.parent('.line');
       //   var $latterNextAll = $latter.nextAll();
-      //   $former.parent('div.line').append($latter).append($latterNextAll);
+      //   $former.parent('.line').append($latter).append($latterNextAll);
       //   $latterParent.remove();
       // }
       if($latter == $c){
@@ -519,7 +693,7 @@ Buffer.prototype.yankPrevRegion = function(){
   var $mark = this.$BOY;
   // console.log($mark);
   if($mark == null){
-    $mb.text('Previous command was not a yank.');
+    mb && mb.insertText('Previous command was not a yank.');
     return;
   }
   this.killRing.next();
@@ -623,20 +797,53 @@ Buffer.prototype.fireEvent = function(event_type, event){
   }
 };
 
-Buffer.prototype.init = function(selector, killRing){
+Buffer.prototype.init = function(selector, killRing, defaultModeName){
   this.$buffer = $(selector);
   this.uuid = generate_uuid();
   this.killRing = killRing;
+  this.active = false;
+  this.defaultModeName = defaultModeName || 'default';
   this.reset();
+  if(Buffer.buffers == null){
+    Buffer.buffers = [];
+  }
+  Buffer.buffers.push(this);
 };
+
+
+Buffer.prototype.setActive = function(active){
+  this.active = active;
+  if(active){
+    Gmacs.buffer = this;
+    var curBuf = this;
+    Buffer.buffers.forEach(function(buffer){
+      if(buffer != curBuf){
+        buffer.setActive(false);
+      }
+    });
+  }
+  var buffer = this;
+  var $c = this.$c;
+  var opa = 1;
+  function cursor_anime(){
+    if(buffer.active){
+      $c.css('visibility', 'visible');
+      $c.animate({opacity: (opa = 1 - opa)}, 400, cursor_anime);
+    } else {
+      $c.css('visibility', 'hidden');
+    }
+  }
+  cursor_anime();
+};
+
 
 Buffer.prototype.insertLineDelimiterCore = function(){
   var pos = this.getCursorPosition();
   var $c = this.$c;
   var next = $c.before('<span class="char line_delimiter"><br />\n</span>')
-    .parent('div.line').removeClass('current')
+    .parent('.line').removeClass('current')
     .after('<div class="line current"></div>')
-    .next('div.line')
+    .next('.line')
     //.append($('span.cursor, span.cursor ~ span.char, span.cursor ~ span.mark'));
     .append($($.makeArray($c).concat($.makeArray($c.nextAll('span.char, span.mark')))));
   
@@ -659,7 +866,7 @@ Buffer.prototype.count = function($c){
   }
   var $prevChar = $c.prevAll('span.char').first();
   if($prevChar.length == 0){
-    var $preLine = $c.parent('div.line').prev('div.line');
+    var $preLine = $c.parent('.line').prev('.line');
     if($preLine.length > 0){
       $prevChar = $preLine.children('span.char').last();
     } else {
@@ -668,6 +875,11 @@ Buffer.prototype.count = function($c){
     }
   }
   return $('span.char', this.$buffer).index($prevChar)+1;
+};
+
+Buffer.prototype.insertText = function(text){
+  var self = this;
+  text.split('').forEach(function(c){self.insertChar(c);});
 };
 
 Buffer.prototype.insertCharCore = function(c){
@@ -708,8 +920,8 @@ Buffer.prototype.backspace = function(){
   var $prev = $c.prevAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($prev.length == 0){
-    var $line = $c.parent('div.line');
-    var $preLine = $line.prev('div.line');
+    var $line = $c.parent('.line');
+    var $preLine = $line.prev('.line');
     if($preLine.length > 0){
       c = '\n';
       $('span.char.line_delimiter', $preLine).remove();
@@ -735,8 +947,8 @@ Buffer.prototype.deleteCore = function(){
   var $next = $c.nextAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($next.length == 0){
-    var $line = $c.parent('div.line');
-    var $nextLine = $line.next('div.line');
+    var $line = $c.parent('.line');
+    var $nextLine = $line.next('.line');
     if($nextLine.length > 0){
       c = '\n';
       $('span.char.line_delimiter', $line).remove();
@@ -763,7 +975,7 @@ Buffer.prototype.moveCursorToBOL = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   $('span.char.normal', $line).first().before($c);
   while($c.next().hasClass('mark')){
     $c.next().after($c);
@@ -775,7 +987,7 @@ Buffer.prototype.moveCursorToEOL = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   $('span.char.normal', $line).last().after($c);
   while($c.next().hasClass('mark')){
     $c.next().after($c);
@@ -790,7 +1002,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   //var up_or_down = 0;
   if(n<0){
     var $prev = $c.prevAll('span.char').first();
@@ -798,7 +1010,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       $prev.before($c);
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:-1});
     } else {
-      var $preLine = $line.prev('div.line');
+      var $preLine = $line.prev('.line');
       if($preLine.length > 0){
         var $chars = $('span.char.normal', $preLine);
         if($chars.length > 0){
@@ -824,7 +1036,7 @@ Buffer.prototype.moveCursorHorizontally = function(n){
       }
       this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     } else {
-      var $nextLine = $line.next('div.line');
+      var $nextLine = $line.next('.line');
       if($nextLine.length > 0){
         $nextLine.prepend($c);
         while($c.next().hasClass('mark')){
@@ -849,7 +1061,7 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
   if(up_or_down != -1 && up_or_down != 1){
     return;
   }
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   var line_height = $line.height() + h('margin-top') + h('border-top') + h('padding-top')
     + h('margin-bottom') + h('border-bottom') + h('padding-bottom');
   
@@ -874,16 +1086,16 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
 Buffer.prototype.moveCursorVertically = function(n){
   if(!this.enabled) return;
   var $c = this.$c;
-  var $line = $c.parent('div.line');
+  var $line = $c.parent('.line');
   if(this.cursorX < 0){
     this.cursorX = $c.prevAll('span.char.normal').length;
   }
   // console.log(cursorX);
   var $targetLine = null;
   if(n<0){
-    $targetLine = $line.prev('div.line');
+    $targetLine = $line.prev('.line');
   } else {
-    $targetLine = $line.next('div.line');
+    $targetLine = $line.next('.line');
   }
   if($targetLine.length > 0){
     var $targetLineChars = $('span.char.normal', $targetLine);
@@ -911,7 +1123,7 @@ Buffer.prototype.lineDelimiter = '\n';
 Buffer.prototype.getCursorPosition = function($target){
   var $c = $target == null ? this.$c : $target;
   var column = $c.prevAll('span.char.normal').length;
-  var row = $c.parent('div.line').prevAll('div.line').length + 1;
+  var row = $c.parent('.line').prevAll('.line').length + 1;
   return {row: row, column: column};
 };
 
@@ -1113,3 +1325,5 @@ LinkedList.prototype.cur = function(){
   }
   return element.value;
 };
+
+
