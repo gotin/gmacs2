@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <div id="log"></div>
+		<script>
+      var logDiv = document.getElementById("log");
+			function log(s){
+			  console.log(s);
+        logDiv.innerHTML  = logDiv.innerHTML + "<pre>" + s + "</pre>";
+			}
+		</script>
+    <script>
+      var alertOnlineStatus = function() {
+        window.alert(navigator.onLine ? 'online' : 'offline');
+      };
+
+      window.addEventListener('online',  alertOnlineStatus);
+      window.addEventListener('offline',  alertOnlineStatus);
+
+      alertOnlineStatus();
+    </script>
+ <script>
+      var remote = require('remote');
+			var version = remote.require('app').getVersion()
+      log(version);
+    </script>
+
+<div id="holder">
+  Drag your file here
+</div>
+
+<script>
+  var ipc = require('ipc');
+  
+
+  var holder = document.getElementById('holder');
+  holder.ondragover = function () {
+    return false;
+  };
+  holder.ondragleave = holder.ondragend = function () {
+    return false;
+  };
+  holder.ondrop = function (e) {
+    e.preventDefault();
+    var file = e.dataTransfer.files[0];
+    log('File you dragged here is;');
+	  log(file.path)
+    ipc.send('asynchronous-message', file.path);
+    for(var a in file){
+      log(a + ":" + file[a]);
+	  }  
+    return false;
+  };
+  ipc.on('asynchronous-reply', function(fileContents) {
+    log(fileContents); // prints "pong"
+  });
+
+</script>
+  </body>
+</html>
