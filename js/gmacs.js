@@ -168,11 +168,11 @@ $(function(){
       if(typeof status != 'object' || !('keepPastInput' in status)
          || !status.keepPastInput){
         Gmacs.past_input = null;
-        // mb.clear();
+        mb.clear();
       }
     } else {
-      // mb.clear();
       Gmacs.past_input = null;
+			mb.clear();
     }
   }
 
@@ -301,11 +301,11 @@ $(function(){
         $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
           Gmacs.past_input = null;
-          // mb.clear();
+          mb.clear();
         }
       } else {
-        // mb.clear();
         keyDownHit = !!keyDown;
+				mb.clear();
       }
     }
   });
