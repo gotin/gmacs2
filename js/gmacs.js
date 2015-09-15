@@ -112,7 +112,6 @@ $(function(){
   // mb.mode_stack[0].commands = mbCommands;
 
   mbCommands.insertLineDelimiter = function(opt){
-    console.log('hoge');
     var $chars = $('.char', mb.$buffer); 
     var value = $chars.text();
     mb.args[mb.curArg.name] = value;
@@ -602,10 +601,10 @@ Buffer.prototype.region = function($mark){
     var $marks_in_lastLine = $latter.prevAll('span.mark');
     $region =$($.makeArray($firstLine)
                .concat($.makeArray($lines))
-               .concat($.makeArray($lastLine)));
+               .concat($.makeArray($lastLine).reverse()));
     $marks_in_region =$($.makeArray($marks_in_firstLine)
                         .concat($.makeArray($marks_in_lines))
-                        .concat($.makeArray($marks_in_lastLine)));
+                        .concat($.makeArray($marks_in_lastLine).reverse()));
   }
   return {$former: $former, $latter: $latter,
           $region: $region, $marks_in_region: $marks_in_region,
@@ -631,7 +630,8 @@ function copy_cut_func_gen(cut_option){
     var $marks_in_region = ret.$marks_in_region;
     var same_row = ret.same_row;
     
-    this.killRing.push($region);
+    // this.killRing.push($region);
+		this.killRing.push({region:$region, text:$region.text()});
     if(cut_option){
       $former.before($marks_in_region);
       // $region.remove();
@@ -665,8 +665,13 @@ function copy_cut_func_gen(cut_option){
 
 Buffer.prototype.yankRegion = function(){
   var $c = this.$c;
-  var $region = this.killRing.top();
-  var text = $region.text();
+	
+  // var $region = this.killRing.top();
+  // var text = $region.text();
+	var regionInfo = this.killRing.top();
+	var $region = regionInfo.region;
+	var text = regionInfo.text;
+	
   var self = this;
   var $BOY = $('<span class="BOY"></span>');
   $c.before($BOY);
@@ -691,18 +696,20 @@ Buffer.prototype.yankRegion = function(){
 Buffer.prototype.yankPrevRegion = function(){
   var $c = this.$c;
   var $mark = this.$BOY;
-  // console.log($mark);
   if($mark == null){
     mb && mb.insertText('Previous command was not a yank.');
     return;
   }
   this.killRing.next();
-  var $region_next = this.killRing.top();
+  // var $region_next = this.killRing.top();
+	var regionNextInfo = this.killRing.top();
+	var $region_next = regionNextInfo.region
   if($region_next){
     var ret = this.region($mark);
     var $yanked_region = ret.$region;
     $yanked_region.remove();
-    var text = $region_next.text();
+    // var text = $region_next.text();
+		var text = regionNextInfo.text;
     $mark.after($c);
     var self = this;
     text.split('').forEach(function(c){self.insertChar(c);});
