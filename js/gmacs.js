@@ -495,6 +495,7 @@ Gmacs.modes = {};
 function Buffer(selector){
   this.init.apply(this, arguments);
 };
+Gmacs.Buffer = Buffer;
 
 function generate_uuid(){
   return (S4()+S4()+"-"+S4()+"-"+S4()+"-"+S4()+"-"+S4()+S4() +S4());

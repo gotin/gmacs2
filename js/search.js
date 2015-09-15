@@ -29,7 +29,7 @@ Search.prototype.init = function(){
   prepareKeyEventMapForSearch(this, Gmacs.modes, this.commands, this.keyEventMap, '\n');
 };
 
-Buffer.prototype.searchCore = function(){
+Gmacs.Buffer.prototype.searchCore = function(){
   var keyword = this.search_keyword;
   var len = keyword.length;
   var $e = this.$buffer;
@@ -52,11 +52,12 @@ Buffer.prototype.searchCore = function(){
   }
 };
 
-Buffer.prototype.search = function(){
+Gmacs.Buffer.prototype.search = function(){
   if(this.search_keyword == null) return;
   this.searchCore();
   search_and_go(this, 0, this.search_forward);
 };
+console.log("hoge");
 
 function search_and_go(buffer, count_diff, next_or_prev){
   if(buffer.search_keyword == null || buffer.search_keyword == ''){
