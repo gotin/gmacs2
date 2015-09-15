@@ -1334,3 +1334,23 @@ LinkedList.prototype.cur = function(){
 };
 
 
+var ipc = require('ipc');
+var holder = document.body;
+holder.ondragover = function () {
+    return false;
+};
+holder.ondragleave = holder.ondragend = function () {
+    return false;
+};
+holder.ondrop = function (e) {
+    e.preventDefault();
+    var file = e.dataTransfer.files[0];
+    ipc.send('asynchronous-message', file.path);
+    return false;
+  };
+ipc.on('asynchronous-reply', function(fileContents) {
+		Gmacs.buffer.insertText(fileContents);
+});
+
+
+module.exports = Gmacs;

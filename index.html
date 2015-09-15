@@ -17,8 +17,10 @@
 		</div>
 		<div id="mini-buffer">
 		</div>
-		<script src="http://code.jquery.com/jquery-2.1.0.min.js"></script>
-		<script src="js/gmacs.js"></script>
-		<script src="js/search.js"></script>
+		<script>
+      window.$ = require(__dirname + '/js/jquery-2.1.0.min.js');
+			window.Gmacs = require(__dirname + '/js/gmacs.js');
+			require(__dirname + '/js/search.js');
+		</script>
 	</body>
 </html>
