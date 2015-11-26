@@ -1,3 +1,13 @@
+var log = cwlog.logger(5); // debug
+/*
+  0: OFF
+  1: FATAL
+  2: ERROR
+  3: WARN
+  4: INFO
+  5: DEBUG
+  6: TRACE
+*/
 var $input = $('#input');
 var input = $input.get(0);
 var $d = $(document);
@@ -5,6 +15,7 @@ var $status = $('#status');
 var $mb = $('#mini-buffer');
 var mb = null;
 var $body = $('html,body');
+
 $(function(){
   $input.val('');
   var ime = false;
@@ -21,17 +32,17 @@ $(function(){
     if(!ime)
       input.select();
   }, 100);
-  var keyEventMap = {};
+      var keyEventMap = {};
   var commands = {};
   var modes = {};
   modes.default = {keyEventMap: keyEventMap,
-                  commands: commands,
-                  name: 'default'};
+                   commands: commands,
+                   name: 'default'};
   var current_mode = modes.default;
   var killRing = new Ring(16);
   Gmacs.modes = modes;
   var buffers = {'*scratch*' : new Buffer('#buffer', killRing)};
-  var current_buffer_title = '*scratch*';
+      var current_buffer_title = '*scratch*';
   var buffer = buffers[current_buffer_title];
   Gmacs.buffers = buffers;
   Gmacs.buffer = buffer;
@@ -68,11 +79,11 @@ $(function(){
   var mbCommands = {};
   prepareKeyEventMap(modes, mbCommands, mbKeyEventMap, buffer.lineDelimiter);
   modes['mini-buffer-default'] = {keyEventMap: mbKeyEventMap,
-                  commands: mbCommands,
-                  name: 'mini-buffer-default'};
+                                  commands: mbCommands,
+                                  name: 'mini-buffer-default'};
   mb = new Buffer('#mini-buffer', killRing, 'mini-buffer-default');
   mb.initHtml = function(uuid){
-    return '<div id="BOF_'+uuid+'" class="BOF"></div><span id="prompt"></span><span class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></span><div id="EOF_'+uuid+'" class="EOF"></div>';
+    return '<div id="BOF_'+uuid+'" class="BOF"></div><span id="prompt"></span><div class="line current"><span class="cursor" id="cursor_'+uuid+'"></span></div><div id="EOF_'+uuid+'" class="EOF"></div>';
     
   };
   mb.reset();
@@ -152,8 +163,8 @@ $(function(){
 
     var command = keyEventMap[input];
     
-    // console.log('invokeHandler');
-    // console.log(command);
+    // log.debug('invokeHandler');
+    // log.debug(command);
     var func = commands[command];
     if(func == null){
       func = commands[keyEventMap['<default>']];
@@ -168,18 +179,18 @@ $(function(){
       if(typeof status != 'object' || !('keepPastInput' in status)
          || !status.keepPastInput){
         Gmacs.past_input = null;
-        mb.clear();
+        Gmacs.buffer == mb || mb.clear();
       }
     } else {
       Gmacs.past_input = null;
-			mb.clear();
+      Gmacs.buffer == mb || mb.clear();
     }
   }
 
   // $d.bind('compositionstart', function(e){
   $input.bind('compositionstart', function(e){
-    // console.log('ime');
-    // console.log(e);
+    // log.debug('ime');
+    // log.debug(e);
     var buffer = Gmacs.buffer;
     ime = true;
     $input.css(buffer.$c.position());
@@ -202,7 +213,7 @@ $(function(){
   });;
   
   $input.css({left:'-100px',top:'-100px'});
-
+  
   // $d.keypress(function(e){
   $input.keypress(function(e){
     var mod = (e.altKey ? 'A' : '') + (e.shiftKey ? 'S' : '') + (e.metaKey ? 'M' : '') + (e.ctrlKey ? 'C' : '');
@@ -215,16 +226,17 @@ $(function(){
       } else {
         input = mod ? mod + '-' + char : char;
       }
+      log.debug('keypress: ' + input);
       if(!ime && input){
-        // console.log(input);
-        // console.log('charCode: ' + e.charCode);
-        // console.log('keyCode: ' + e.keyCode);
-        // console.log('converted char: ' + char);
-        // console.log('char: ' + e.char);
-        // console.log('key: ' + e.key);
-        // console.log('input: ' + input);
-        // console.log('---');
-
+        // log.debug(input);
+        // log.debug('charCode: ' + e.charCode);
+        // log.debug('keyCode: ' + e.keyCode);
+        // log.debug('converted char: ' + char);
+        // log.debug('char: ' + e.char);
+        // log.debug('key: ' + e.key);
+        // log.debug('input: ' + input);
+        // log.debug('---');
+        
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -233,7 +245,7 @@ $(function(){
     }
     keyDownHit = false;
   }).keydown(function(e){
-    // console.log(e);
+    // log.debug(e);
     var buffer = Gmacs.buffer;
     var mode_stack = buffer.mode_stack;
     var mode = mode_stack[mode_stack.length-1];
@@ -265,29 +277,29 @@ $(function(){
         c = '';
       }
       input = mod + '-' + c.toLowerCase();
-      // console.log(input);
+      log.debug("keydown: " + input);
       keyDown = null;
     } else {
       input = vkCodeMap[keyDown];
     }
-
+    
     if(!ime && input){
-      // console.log(input);
+      // log.debug(input);
       
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
       if(Gmacs.past_input){
         input = Gmacs.past_input + input;
-      }
+          }
       var command = keyEventMap[input];
       var func = commands[command];
       // for(var a in keyEventMap){
-      // console.log(a);
+      // log.debug(a);
       //}
 
       //for(var a in commands){
-      //console.log(a);
+      //log.debug(a);
       //}
 
       if(func == null && c != ''){
@@ -301,11 +313,11 @@ $(function(){
         $status.text('(' + pos.row+','+pos.column+')');
         if(typeof status != 'object' || !('keepPastInput' in status) || !status.keepPastInput){
           Gmacs.past_input = null;
-          mb.clear();
+          Gmacs.buffer == mb || mb.clear();
         }
       } else {
         keyDownHit = !!keyDown;
-				mb.clear();
+        Gmacs.buffer == mb || mb.clear();
       }
     }
   });
@@ -346,14 +358,14 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
   function prepareBasicKeyInputHandler(){
     for(var code=32;code <= 126; code++){
       var char = String.fromCharCode(code);
-      // console.log(char);
+      // log.debug(char);
       var handler = generateKeyInputHandler(char);
       var commandName = 'insertChar(' + char + ')';
       commands[commandName] = handler;
       keyEventMap[char] = commandName;
       keyEventMap['S-' + char] = commandName;
-    }
-    var insertLineDelimiter = generateKeyInputHandler(lineDelimiter || '\n');
+        }
+        var insertLineDelimiter = generateKeyInputHandler(lineDelimiter || '\n');
     commands.insertLineDelimiter = insertLineDelimiter;
     keyEventMap['C-m'] = keyEventMap['Enter'] = 'insertLineDelimiter';
     commands.backspace = backspace;
@@ -380,14 +392,14 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
         Gmacs.past_input = sequence;
       }
       mb.insertText(Gmacs.past_input);
-      // console.log(Gmacs.past_input);
+      // log.debug(Gmacs.past_input);
       return {keepPastInput : true};
     };
   }
 
   function generateKeyInputHandler(char){
     return function(opt){
-      // console.log('#' + char + '#');
+      // log.debug('#' + char + '#');
       var buffer = opt.buffer;
       buffer.insertChar(char);
     };
@@ -410,7 +422,7 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
 
   function cutRegion(opt){
     var buffer = opt.buffer;
-        buffer.cutRegion();
+    buffer.cutRegion();
   }
 
   function copyRegion(opt){
@@ -474,6 +486,16 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
       var buffer = opt.buffer;
       buffer.moveCursorVertically(+1);
     };
+    keyEventMap['M-v'] = 'movePageUp';
+    commands.movePageUp = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVerticallyPageHeight(-1);
+    };
+    keyEventMap['C-v'] = 'movePageDown';
+    commands.movePageDown = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorVerticallyPageHeight(+1);
+    };
     keyEventMap['C-a'] = keyEventMap['Home'] = 'moveBOL';
     commands.moveBOL = function(opt){
       var buffer = opt.buffer;
@@ -483,6 +505,16 @@ function prepareKeyEventMap(modes, commands, keyEventMap, lineDelimiter){
     commands.moveEOL = function(opt){
       var buffer = opt.buffer;
       buffer.moveCursorToEOL();
+    };
+    keyEventMap['SM-,'] = 'moveBOF';
+    commands.moveBOF = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToBOF();
+    };
+    keyEventMap['SM-.'] = 'moveEOF';
+    commands.moveEOF = function(opt){
+      var buffer = opt.buffer;
+      buffer.moveCursorToEOF();
     };
   }
 }
@@ -508,7 +540,7 @@ function generate_uuid(){
 Buffer.prototype.clear = function(){
   var $e = this.$buffer;
   $('.line:eq(0)', $e).nextAll().remove().andSelf().children('span.char').remove();
-  // console.log('clear');
+  // log.debug('clear');
 };
 
 Buffer.prototype.initHtml = function(uuid){
@@ -530,9 +562,9 @@ Buffer.prototype.reset = function(){
   this.eventHandlers = {};
   var self = this;
 
-      this.addEventListner('cursor_moved', function(event){
-        self.scrollToCursor(event.row || 0);
-      });
+  this.addEventListner('cursor_moved', function(event){
+    self.scrollToCursor(event.row || 0);
+  });
   this.fireEvent('cursor_moved', {row:-1});
   this.markRing = new Ring(16);
   //this.scrollToCursor(-1);
@@ -549,7 +581,7 @@ Buffer.prototype.markSet = function(){
     // nothing to do here now
   } else {
     var $preMark = this.markRing.top();
-    $preMark && $preMark.removeClass('latest');
+        $preMark && $preMark.removeClass('latest');
     var $mark = null;
     if(this.visibleMarkMode){
       $mark = $('<span class="mark visible latest"></span>');
@@ -574,39 +606,39 @@ Buffer.prototype.region = function($mark){
   var $former = null;
   var $latter = null;
   var $marks_in_region = null;
-  if(same_row){
-    if(curPos.column == markPos.column){
-      return null; // nothing to do here
-    } else if(markPos.column < curPos.column){
-      $former = $mark;
-      $region = $mark.nextUntil($c, ':not(span.mark)');
-      $marks_in_region = $mark.nextUntil($c, 'span.mark');
-    } else {
-      $former = $c;
-      $region = $c.nextUntil($mark, ':not(span.mark)');
-      $marks_in_region = $c.nextUntil($mark, 'span.mark');
-    }
-  } else {
-    if(markPos.row < curPos.row){
-      $former = $mark;
-      $latter = $c;
-    } else {
-      $former = $c;
-      $latter = $mark;
-    }
-    var $firstLine = $former.nextAll(':not(span.mark)');
-    var $marks_in_firstLine = $former.nextAll('span.mark');
-    var $lines = $former.parent('.line').nextUntil($latter.parent('.line'), '.line');
-    var $marks_in_lines = $('span.mark', $lines);
-    var $lastLine = $latter.prevAll(':not(span.mark)');
-    var $marks_in_lastLine = $latter.prevAll('span.mark');
-    $region =$($.makeArray($firstLine)
-               .concat($.makeArray($lines))
-               .concat($.makeArray($lastLine).reverse()));
-    $marks_in_region =$($.makeArray($marks_in_firstLine)
-                        .concat($.makeArray($marks_in_lines))
-                        .concat($.makeArray($marks_in_lastLine).reverse()));
-  }
+      if(same_row){
+        if(curPos.column == markPos.column){
+          return null; // nothing to do here
+        } else if(markPos.column < curPos.column){
+          $former = $mark;
+          $region = $mark.nextUntil($c, ':not(span.mark)');
+          $marks_in_region = $mark.nextUntil($c, 'span.mark');
+        } else {
+          $former = $c;
+          $region = $c.nextUntil($mark, ':not(span.mark)');
+          $marks_in_region = $c.nextUntil($mark, 'span.mark');
+        }
+      } else {
+        if(markPos.row < curPos.row){
+          $former = $mark;
+          $latter = $c;
+        } else {
+          $former = $c;
+          $latter = $mark;
+        }
+        var $firstLine = $former.nextAll(':not(span.mark)');
+        var $marks_in_firstLine = $former.nextAll('span.mark');
+        var $lines = $former.parent('.line').nextUntil($latter.parent('.line'), '.line');
+            var $marks_in_lines = $('span.mark', $lines);
+            var $lastLine = $latter.prevAll(':not(span.mark)');
+        var $marks_in_lastLine = $latter.prevAll('span.mark');
+        $region =$($.makeArray($firstLine)
+                   .concat($.makeArray($lines))
+                   .concat($.makeArray($lastLine).reverse()));
+        $marks_in_region =$($.makeArray($marks_in_firstLine)
+                            .concat($.makeArray($marks_in_lines))
+                            .concat($.makeArray($marks_in_lastLine).reverse()));
+      }
   return {$former: $former, $latter: $latter,
           $region: $region, $marks_in_region: $marks_in_region,
           curPos: curPos, markPos: markPos,
@@ -625,20 +657,21 @@ function copy_cut_func_gen(cut_option){
     var ret = this.region($mark);
     var curPos = ret.curPos;
     var markPos = ret.markPos;
-    var $region = ret.$region;
+        var $region = ret.$region;
     var $former = ret.$former;
     var $latter = ret.$latter;
     var $marks_in_region = ret.$marks_in_region;
     var same_row = ret.same_row;
     
     // this.killRing.push($region);
-		this.killRing.push({region:$region, text:$region.text()});
+    this.killRing.push({region:$region, text:$region.text()});
     if(cut_option){
       $former.before($marks_in_region);
       // $region.remove();
       if($former.hasClass('mark')){
         this.swapMarkAndCursor();
       }
+      // TODO: delete all text in region at once 
       while(!$c.next().hasClass('mark')){
         this.delete();
       }
@@ -647,7 +680,7 @@ function copy_cut_func_gen(cut_option){
       //   var $latterNextAll = $latter.nextAll();
       //   $former.parent('.line').append($latter).append($latterNextAll);
       //   $latterParent.remove();
-      // }
+          // }
       if($latter == $c){
         var motion = {row: 0, column: 0};
         if(same_row){
@@ -666,13 +699,13 @@ function copy_cut_func_gen(cut_option){
 
 Buffer.prototype.yankRegion = function(){
   var $c = this.$c;
-	
+  
   // var $region = this.killRing.top();
   // var text = $region.text();
-	var regionInfo = this.killRing.top();
-	var $region = regionInfo.region;
-	var text = regionInfo.text;
-	
+      var regionInfo = this.killRing.top();
+      var $region = regionInfo.region;
+  var text = regionInfo.text;
+  
   var self = this;
   var $BOY = $('<span class="BOY"></span>');
   $c.before($BOY);
@@ -680,8 +713,8 @@ Buffer.prototype.yankRegion = function(){
   this.$BOY = $BOY;
   var buffer = this;
   var func = function(e){
-    // console.log('in command_executed event handler:');
-    // console.log(e.command);
+    // log.debug('in command_executed event handler:');
+    // log.debug(e.command);
     if(e.command != 'yankRegion' && e.command != 'yankPrevRegion'){
       if(buffer.$BOY){
         buffer.$BOY.remove();
@@ -703,14 +736,14 @@ Buffer.prototype.yankPrevRegion = function(){
   }
   this.killRing.next();
   // var $region_next = this.killRing.top();
-	var regionNextInfo = this.killRing.top();
-	var $region_next = regionNextInfo.region
+      var regionNextInfo = this.killRing.top();
+  var $region_next = regionNextInfo.region
   if($region_next){
     var ret = this.region($mark);
     var $yanked_region = ret.$region;
     $yanked_region.remove();
     // var text = $region_next.text();
-		var text = regionNextInfo.text;
+    var text = regionNextInfo.text;
     $mark.after($c);
     var self = this;
     text.split('').forEach(function(c){self.insertChar(c);});
@@ -737,7 +770,7 @@ Buffer.prototype.moveCursorAt = function(pos){
 };
 
 Buffer.prototype.moveToPreMark = function(){
-  // console.log(this.markRing);
+  // log.debug(this.markRing);
   var $c = this.$c;
   var $mark = this.markRing.next();
   if($mark == null){
@@ -766,15 +799,15 @@ Buffer.prototype.swapMarkAndCursor = function(){
   var cur_pos = this.getCursorPosition();
   var rowI = mark_pos.row - cur_pos.row;
   rowI = rowI > 0 ? 1 : (rowI < 0 ? -1 : 0);
-  var colI = mark_pos.column - cur_pos.column;
+      var colI = mark_pos.column - cur_pos.column;
   colI = colI > 0 ? 1 : (colI < 0 ? -1 : 0);
   this.fireEvent('cursor_moved', {row: rowI, column: colI});
   
 };
 
 Buffer.prototype.removeEventListner = function(event_type, handler){
-  var handlers = this.eventHandlers[event_type];
-  var handlerIndex = this.eventHandlersIndex[event_type];
+      var handlers = this.eventHandlers[event_type];
+      var handlerIndex = this.eventHandlersIndex[event_type];
   var index = handlerIndex[handler];
   if(index){
     handlers.splice(index, 1);
@@ -828,7 +861,7 @@ Buffer.prototype.setActive = function(active){
       if(buffer != curBuf){
         buffer.setActive(false);
       }
-    });
+        });
   }
   var buffer = this;
   var $c = this.$c;
@@ -852,7 +885,7 @@ Buffer.prototype.insertLineDelimiterCore = function(){
     .parent('.line').removeClass('current')
     .after('<div class="line current"></div>')
     .next('.line')
-    //.append($('span.cursor, span.cursor ~ span.char, span.cursor ~ span.mark'));
+  //.append($('span.cursor, span.cursor ~ span.char, span.cursor ~ span.mark'));
     .append($($.makeArray($c).concat($.makeArray($c.nextAll('span.char, span.mark')))));
   
   this.fireEvent('cursor_moved', {buffer:this,row:+1, col:-1});
@@ -864,7 +897,7 @@ Buffer.prototype.insertLineDelimiter = function(){
   var count = this.count();
   this.insertLineDelimiterCore();
   this.commandHistory.push({o:'w', c:'\n', p: count});
-  // console.log(this.commandHistory);
+  // log.debug(this.commandHistory);
   
 };
 
@@ -885,24 +918,78 @@ Buffer.prototype.count = function($c){
   return $('span.char', this.$buffer).index($prevChar)+1;
 };
 
+var $tmp = $('<span>');
+function lineToHtml(line){
+  return line.split('').map(function(c){
+    return charToHtml(c);
+  }).join('');
+}
+
+function charToHtml(char){
+  if(char.length == 0){
+    return '';
+  }
+  var content = escapeHtml(char);
+      var additionalClass = char==='\t' ? ' tab' : (/\s/.test(char) ? ' space' : '');
+  return '<span class="char normal'+ additionalClass+ '">'+ content +'</span>';
+}
+
+Buffer.prototype.insertTextCore = function(text){
+  // text.split('').forEach(function(c){self.insertChar(c);});
+  if(!text || text.length <= 0) return;
+  var lines = text.split('\n');
+      var linesCount = lines.length;
+      var firstLine = lines[0];
+      var midLines = lines.slice(1, lines.length-1);
+
+  var pos = this.getCursorPosition();
+  var $c = this.$c;
+
+  var $next = $c.before(lineToHtml(firstLine));
+  if(linesCount >= 2){
+    log.debug(linesCount);
+    log.debug("$"+text+"$");
+    $c.before('<span class="char line_delimiter"><br />\n</span>').parent('.line').removeClass('current');
+    $c.before('<span class="char line_delimiter">\n</span>').parent('.line').removeClass('current');
+    var lastLine = lines[linesCount-1];
+    var html = "";
+    if(linesCount >= 3){
+      html = midLines.map(function(line){
+        // return '<div class="line">'+ lineToHtml(line)  +'<span class="char line_delimiter"><br />\n</span></div>';
+        return '<div class="line">'+ lineToHtml(line)  +'<span class="char line_delimiter">\n</span></div>';
+      }).join('\n');
+    }
+    $c.parent('div.line').after(html + '<div class="line current">'+lineToHtml(lastLine)+'</div>');
+    $('div.line.current').append($($.makeArray($c).concat($.makeArray($c.nextAll('span.char, span.mark')))));
+  }
+  // $('div.line.current').removeClass('current');
+  // $c.parent('div.line').addClass('current');
+  // this.fireEvent('cursor_moved', {buffer:this,row:+1, col:-1});
+  //this.fireEvent('modified_text', {buffer:this, insertedChar:'\n', position:pos});
+  
+};
+
 Buffer.prototype.insertText = function(text){
-  var self = this;
-  text.split('').forEach(function(c){self.insertChar(c);});
+  if(!this.enabled) return;
+  var count = this.count();
+  this.insertTextCore(text);
+  this.commandHistory.push({o:'wm', c:text, p: count});
+  this.fireEvent('cursor_moved', {buffer:this,row:+1, col:0});
+  // this.fireEvent('modified_text', {buffer:this, insertedChar:'\n', position:pos});
+  
 };
 
 Buffer.prototype.insertCharCore = function(c){
   var $c = this.$c;
   this.cursorX = -1;
+  log.debug('insertCharCore:');
+  log.debug($c);
+  log.debug(this.$buffer.html());
   if(c == (this.lineDelimiter || '\n')){
     this.insertLineDelimiterCore();
   } else {
     var pos = this.getCursorPosition();
-    if(c == ' '){
-      $c.before('<span class="char normal space">&nbsp;</span>');
-    } else {
-      $c.before('<span class="char normal"></span>')
-        .prev().text(c);
-    }
+    $c.before(charToHtml(c));
     this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
     this.fireEvent('modified_text', {buffer:this, insertedChar:c, position:pos});
   }
@@ -917,14 +1004,14 @@ Buffer.prototype.insertChar = function(c){
   var count = this.count();
   this.insertCharCore(c);
   this.commandHistory.push({o:'w', c:c, p: count});
-  // console.log(this.commandHistory);
+  log.debug(this.commandHistory);
 };
 Buffer.prototype.backspace = function(){
   if(!this.enabled) return;
   var $c = this.$c;
   var c = null;
   var count = this.count();
-  this.cursorX = -1;
+      this.cursorX = -1;
   var $prev = $c.prevAll('span.char.normal').first();
   var pos = this.getCursorPosition();
   if($prev.length == 0){
@@ -946,6 +1033,18 @@ Buffer.prototype.backspace = function(){
     this.fireEvent('modified_text', {buffer:this, removedChar:c, position:pos});
   }
   this.commandHistory.push({o:'d', c:c, p: count-1});
+};
+
+Buffer.prototype.deleteMultipleCore = function(n){
+  var $c = this.$c;
+  var flag = false;
+  var first = $c.next()[0];
+  var $chars = $('span.char', $(document.body)).filter(function(i,e){flag = flag || e === first;flag && n--; return flag && n >=0;});
+  var $lines = $chars.parents('div.line');
+  $chars.remove();
+  $lines.filter(function(i,e){return $('span.char, span.cursor',$(e)).size() == 0;}).remove();
+  $('div.line.current').removeClass('current');
+  $c.parent('div.line').addClass('current');
 };
 
 Buffer.prototype.deleteCore = function(){
@@ -975,7 +1074,7 @@ Buffer.prototype.deleteCore = function(){
 Buffer.prototype.delete = function(){
   if(!this.enabled) return;
   var count = this.count();
-  var c = this.deleteCore();
+      var c = this.deleteCore();
   this.commandHistory.push({o:'d', c:c, p: count});
 };
 
@@ -984,7 +1083,7 @@ Buffer.prototype.moveCursorToBOL = function(){
   var $c = this.$c;
   this.cursorX = -1;
   var $line = $c.parent('.line');
-  $('span.char.normal', $line).first().before($c);
+      $('span.char.normal', $line).first().before($c);
   while($c.next().hasClass('mark')){
     $c.next().after($c);
   }
@@ -1002,11 +1101,37 @@ Buffer.prototype.moveCursorToEOL = function(){
   }
   this.fireEvent('cursor_moved', {buffer:this, row:0, col:+1});
 };
+Buffer.prototype.moveCursorToBOF = function(){
+  if(!this.enabled) return;
+  var $c = this.$c;
+  this.cursorX = -1;
+  $c.parent('div.line').removeClass('current');
+  var $line = $('div.line', $body).first().addClass('current');
+  $('span.char.normal', $line).first().before($c);
+  while($c.next().hasClass('mark')){
+    $c.next().after($c);
+  }
+  this.fireEvent('cursor_moved', {buffer:this, row:-1, col:-1});
+};
+
+Buffer.prototype.moveCursorToEOF = function(){
+  if(!this.enabled) return;
+  var $c = this.$c;
+  this.cursorX = -1;
+  $c.parent('div.line').removeClass('current');
+  var $line = $('div.line', $body).last().addClass('current');
+  $line.append($c);
+  // $('span.char.normal', $line).last().after($c);
+  // while($c.next().hasClass('mark')){
+  // $c.next().after($c);
+  // }
+  this.fireEvent('cursor_moved', {buffer:this, row:+1, col:+1});
+};
 
 
 Buffer.prototype.moveCursorHorizontally = function(n){
-  // console.log(this);
-  // console.log(this.$c);
+  // log.debug(this);
+  // log.debug(this.$c);
   if(!this.enabled) return;
   var $c = this.$c;
   this.cursorX = -1;
@@ -1062,11 +1187,36 @@ Buffer.prototype.moveCursorHorizontally = function(n){
 
 };
 
+Buffer.prototype.getVisibleLines = function(){
+  var $c = this.$c;
+  var $line = $c.parent('.line');
+  var line_height = height($line);
+      var buffer_height = height(this.$buffer);
+  var result = buffer_height / line_height;
+      log.debug(result);
+  return Math.floor(result);
+  
+  function height($e){
+    return $e.height()
+      + h($e, 'margin-top') + h($e, 'margin-bottom')
+      + h($e, 'padding-top') + h($e, 'padding-bottom')
+      + h($e, 'border-top') + h($e, 'border-bottom') ;
+  }
+
+  function h($e, k){
+    var sv = $e.css(k);
+    var match = (sv||'').match(/^\d+/);
+    var v = match ? match[0] : 0;
+    return v|0;
+  }
+};
+
 Buffer.prototype.scrollToCursor = function(up_or_down){
   // up : -1
   // down : +1
   var $c = this.$c;
-  if(up_or_down != -1 && up_or_down != 1){
+  //if(up_or_down != -1 && up_or_down != 1){
+  if(up_or_down == 0 || up_or_down == null){
     return;
   }
   var $line = $c.parent('.line');
@@ -1075,11 +1225,13 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
   
   var top = $c.offset().top - (up_or_down > 0 ? window.innerHeight : 0)
     + (up_or_down > 0 ? 1 : -1) * line_height * 3 + (up_or_down > 0 ? ($status.height() + $mb.height()) : 0);
+  log.debug('scrollToCursor');
+  log.debug(top);
   // TODO: number 3 above should be customizable
 
   var current_top = $d.scrollTop();
   if(up_or_down > 0 && top > current_top ||
-     up_or_down < 0 && top < current_top ){
+         up_or_down < 0 && top < current_top ){
     $body.animate({scrollTop: top}, 10);
   }
 
@@ -1091,6 +1243,14 @@ Buffer.prototype.scrollToCursor = function(up_or_down){
   }
 };
 
+Buffer.prototype.moveCursorVerticallyPageHeight = function(n){
+  
+  this.moveCursorVertically(n * this.getVisibleLines());
+  // for(var i=Math.abs(n);i>0;i--){
+  // this.moveCursorVertically(n);
+  // }
+};
+
 Buffer.prototype.moveCursorVertically = function(n){
   if(!this.enabled) return;
   var $c = this.$c;
@@ -1098,27 +1258,27 @@ Buffer.prototype.moveCursorVertically = function(n){
   if(this.cursorX < 0){
     this.cursorX = $c.prevAll('span.char.normal').length;
   }
-  // console.log(cursorX);
+  // log.debug(cursorX);
   var $targetLine = null;
   if(n<0){
-    $targetLine = $line.prev('.line');
+    $targetLine = $line.prevAll('div.line:eq(' + -(n + 1) +')');
   } else {
-    $targetLine = $line.next('.line');
+    $targetLine = $line.nextAll('div.line:eq(' + (n - 1)+ ')');
   }
   if($targetLine.length > 0){
     var $targetLineChars = $('span.char.normal', $targetLine);
     if(this.cursorX == 0 || $targetLineChars.length == 0){
       $targetLine.prepend($c);
       this.fireEvent('cursor_moved', {buffer:this, row:n, col:-1});
-  } else {
-    if($targetLineChars.length >= this.cursorX){
-      $($targetLineChars.get(this.cursorX-1)).after($c);
-      this.fireEvent('cursor_moved', {buffer:this, row:n, col:0});
     } else {
-      $targetLineChars.last().after($c);
-      this.fireEvent('cursor_moved', {buffer:this, row:n, col:-1});
+      if($targetLineChars.length >= this.cursorX){
+        $($targetLineChars.get(this.cursorX-1)).after($c);
+        this.fireEvent('cursor_moved', {buffer:this, row:n, col:0});
+      } else {
+        $targetLineChars.last().after($c);
+        this.fireEvent('cursor_moved', {buffer:this, row:n, col:-1});
+      }
     }
-  }
     $line.removeClass('current');
     $targetLine.addClass('current');
     // this.scrollToCursor(n);
@@ -1137,12 +1297,12 @@ Buffer.prototype.getCursorPosition = function($target){
 
 Buffer.prototype.undo = function(){
   var command = this.commandHistory.cur();
-  // console.log(command);
+  // log.debug(command);
   if(command == null){
     return;
   }
   var operation = command.o;
-  if(operation != 'w' && operation != 'd'){
+  if(operation != 'w' && operation != 'd' && operation !='wm'  && operation !='dm' ){
     return;
   }
   this.commandHistory.prev();
@@ -1150,8 +1310,15 @@ Buffer.prototype.undo = function(){
     this.moveCursorAt(command.p);
     if(operation == 'w'){
       this.deleteCore();
+    } else if(operation == 'wm'){
+      this.deleteMultipleCore(command.c.length);
+      // for(var i=0,l=command.c.length;i<l;i++){
+      //   this.deleteCore();
+      // }
     } else if(operation == 'd'){
       this.insertCharCore(command.c);
+    } else if(operation == 'dm'){
+      this.insertTextCore(command.c);
     }
   }
 };
@@ -1161,20 +1328,26 @@ Buffer.prototype.redo = function(){
     return;
   }
   var command = this.commandHistory.cur();
-  // console.log(command);
+  // log.debug(command);
   if(command == null){
     return;
   }
   var operation = command.o;
-  if(operation != 'w' && operation != 'd'){
+  if(operation != 'w' && operation != 'd' && operation !='wm'  && operation !='dm' ){
     return;
   }
   if(command.p >= 0){
     this.moveCursorAt(command.p);
     if(operation == 'd'){
       this.deleteCore();
+    } else if(operation == 'dm'){
+      for(var i=0,l=command.c.length;i<l;i++){
+        this.deleteCore();
+      }
     } else if(operation == 'w'){
       this.insertCharCore(command.c);
+    } else if(operation == 'wm'){
+      this.insertTextCore(command.c);
     }
   }
 };
@@ -1203,7 +1376,7 @@ var vkCodeMap = {
 
 
 function keyMap(code){
-  // console.log("code:" + code);
+  // log.debug("code:" + code);
   var char = String.fromCharCode(code);
   if(32 <= code && code <= 126){
     ret = char;
@@ -1296,7 +1469,7 @@ LinkedList.prototype.prev = function(){
   if(element == null){
     // nothing to do here
   } else {
-    var prev = element.prev;
+        var prev = element.prev;
     if(prev == null){
       // nothing to do here
     } else {
@@ -1314,7 +1487,7 @@ LinkedList.prototype.next = function(){
   if(element == null){
     // nothing to do here
   } else {
-    var next = element.next;
+        var next = element.next;
     if(next == null){
       // nothing to do here
     } else {
@@ -1338,20 +1511,48 @@ LinkedList.prototype.cur = function(){
 var ipc = require('ipc');
 var holder = document.body;
 holder.ondragover = function () {
-    return false;
+  return false;
 };
 holder.ondragleave = holder.ondragend = function () {
-    return false;
+  return false;
 };
 holder.ondrop = function (e) {
-    e.preventDefault();
-    var file = e.dataTransfer.files[0];
-    ipc.send('asynchronous-message', file.path);
-    return false;
-  };
+  e.preventDefault();
+  var file = e.dataTransfer.files[0];
+  ipc.send('asynchronous-message', file.path);
+  return false;
+};
 ipc.on('asynchronous-reply', function(fileContents) {
-		Gmacs.buffer.insertText(fileContents);
+  Gmacs.buffer.insertText(fileContents);
 });
 
+var str = '& < > ` " ' + "'";
+
+var escapeHtml = (function (String) {
+  var escapeMap = {
+        '&': '&amp;',
+    "'": '&#x27;',
+    '`': '&#x60;',
+    '"': '&quot;',
+    '<': '&lt;',
+    '>': '&gt;',
+    ' ': '&nbsp;'
+  };
+  var escapeReg = '[';
+  var reg;
+  for (var p in escapeMap) {
+    if (escapeMap.hasOwnProperty(p)) {
+      escapeReg += p;
+    }
+  }
+  escapeReg += ']';
+  reg = new RegExp(escapeReg, 'g');
+  return function escapeHtml (str) {
+    str = (str === null || str === undefined) ? '' : '' + str;
+    return str.replace(reg, function (match) {
+      return escapeMap[match];
+    });
+  };
+}(String));
 
 module.exports = Gmacs;

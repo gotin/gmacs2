@@ -1,7 +1,7 @@
 var app = require('app');  // Module to control application life.
 var fs = require('fs');
 var ipc = require('ipc');
-
+var log = require(__dirname + '/node_modules/cw-log/lib/log.js').logger(3);
 var BrowserWindow = require('browser-window');  // Module to create native browser window.
 
 // Report crashes to our server.
@@ -11,10 +11,10 @@ var BrowserWindow = require('browser-window');  // Module to create native brows
 // be closed automatically when the JavaScript object is GCed.
 var mainWindow = null;
 ipc.on('asynchronous-message', function(event, filepath) {
-  console.log(filepath);  
+  // log.debug(filepath);  
 	fs.readFile(filepath, 'utf8', function(err, text) {
-			console.log('text file:')
-			console.log(text);
+			//	log.debug('text file:')
+			// log.debug(text);
    	  event.sender.send('asynchronous-reply', text);
 	});
 });

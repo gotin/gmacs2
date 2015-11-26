@@ -27,9 +27,12 @@ body {
 }*/
 
 span.cursor{
+		display:block;
+		float:left;
 		width: 0;
 		border-left: 1px solid #FFF;
 		margin-left: -1px;
+		height:15px;
 }
 
 
@@ -39,20 +42,40 @@ span.cursor{
 }
 */
 
+span.char{
+		display:block;
+		float:left;
+		height:15px;
+/*		width:15px; */
+}
 span.char.normal{
-		background-color: #777;
+/*		background-color: #777; */
 		vertical-align: top;
 		/* margin-right: 1px; */
 }
 
-.line{
+span.char.tab{
+		width:20px;
+}
+
+div.line{
 /*		float: none; */
 /*		clear: both; */
 /*		overflow: hidden; */
 		padding: 1px;
+}  
+
+div.line:after   {  
+     content: ".";   
+     display: block;   
+     visibility: hidden;   
+     height: 0.1px;   
+     font-size: 0.1em;   
+     line-height: 0;   
+     clear: both;   
 }
 
-.line.current{
+div.line.current{
 		background-color: #669;
 }
 
@@ -88,6 +111,9 @@ html {
 .mark{
 		width: 0;
 		margin-left: -1px;
+		display:block;
+		float:left;
+		height:15px;
 }
 .mark.visible{ 
 		border-left: 2px dotted yellow;

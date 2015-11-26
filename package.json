@@ -1,5 +1,8 @@
 {
-		"name" : "gmacs2",
-		"version" : "0.1.0",
-		"main" : "main.js"
+  "name": "gmacs2",
+  "version": "0.1.0",
+  "main": "main.js",
+  "dependencies": {
+    "cw-log": "^0.2.0"
+  }
 }

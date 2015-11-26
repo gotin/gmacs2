@@ -1,7 +1,8 @@
 
 $(function(){
+  var log = cwlog.logger(3);
   Gmacs.modes.search = new Search();
-  console.log('search.js');
+  log.debug('search.js');
   var defaultMode = Gmacs.modes.default;
   defaultMode.keyEventMap['C-s'] = 'enterSearchMode';
   defaultMode.commands.enterSearchMode = function(opt){
@@ -57,7 +58,6 @@ Gmacs.Buffer.prototype.search = function(){
   this.searchCore();
   search_and_go(this, 0, this.search_forward);
 };
-console.log("hoge");
 
 function search_and_go(buffer, count_diff, next_or_prev){
   if(buffer.search_keyword == null || buffer.search_keyword == ''){
@@ -166,7 +166,7 @@ function prepareKeyEventMapForSearch(search, modes, commands, keyEventMap, lineD
   function prepareBasicKeyInputHandler(){
     for(var code=32;code <= 126; code++){
       var char = String.fromCharCode(code);
-      // console.log(char);
+      // log.debug(char);
       var handler = generateKeyInputHandler(char);
       var commandName = 'insertChar(' + char + ')';
       commands[commandName] = handler;
@@ -233,7 +233,7 @@ function prepareKeyEventMapForSearch(search, modes, commands, keyEventMap, lineD
   //       Gmacs.past_input = sequence;
   //     }
   //     mb.insertText(Gmacs.past_input);
-  //     // console.log(Gmacs.past_input);
+  //     // log.debug(Gmacs.past_input);
   //     return {keepPastInput : true};
   //   };
   // }
