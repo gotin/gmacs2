@@ -187,15 +187,18 @@ $(function(){
     }
   }
 
-  // $d.bind('compositionstart', function(e){
+  function positionPlus($x,$y){
+    var posX = $x.position();
+    var posY = $y.position();
+    return {top:(posX.top + posY.top)+"px", left:(posX.left + posY.left)+"px"};
+  }
+
   $input.bind('compositionstart', function(e){
-    // log.debug('ime');
-    // log.debug(e);
     var buffer = Gmacs.buffer;
     ime = true;
-    $input.css(buffer.$c.position());
-    $input.css('z-index', '100');
-    
+    var newPosition = positionPlus(buffer.$buffer,buffer.$c);
+    $input.css(newPosition);
+    $input.css('z-index', '200');
   }).bind('compositionend', function(e){
     
     var timer = setInterval(function(){
